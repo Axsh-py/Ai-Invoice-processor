@@ -1,0 +1,172 @@
+{
+  "AFRT": {
+    "code": "AFRT",
+    "meaning": "Air Freight Charge",
+    "cost_type": "Freight",
+    "description": "Air Freight Charge",
+    "category": "freight",
+    "tax_rate": 0.05,
+    "otm_accessorial_code": "AFRT",
+    "invoice_type": "shipment"
+  },
+  "DFRT": {
+    "code": "DFRT",
+    "meaning": "Delivery Freight Charge",
+    "cost_type": "Freight",
+    "description": "Delivery Freight Charge",
+    "category": "delivery",
+    "tax_rate": 0.05,
+    "otm_accessorial_code": "DFRT",
+    "invoice_type": "delivery"
+  },
+  "CUST": {
+    "code": "CUST",
+    "meaning": "Customs Clearance Fee",
+    "cost_type": "Accessorial",
+    "description": "Customs Clearance & Documentation Fee",
+    "category": "customs",
+    "tax_rate": 0.0,
+    "otm_accessorial_code": "CUST",
+    "invoice_type": "customs"
+  },
+  "WHSE": {
+    "code": "WHSE",
+    "meaning": "Warehouse Handling Fee",
+    "cost_type": "Accessorial",
+    "description": "Warehouse Storage and Handling Fee",
+    "category": "warehouse",
+    "tax_rate": 0.05,
+    "otm_accessorial_code": "WHSE",
+    "invoice_type": "warehouse"
+  },
+  "TRANS": {
+    "code": "TRANS",
+    "meaning": "Road Transport / Trucking Fee",
+    "cost_type": "Freight",
+    "description": "Road Transport and Trucking Fee",
+    "category": "transport",
+    "tax_rate": 0.05,
+    "otm_accessorial_code": "TRANS",
+    "invoice_type": "transport"
+  },
+  "FUEL": {
+    "code": "FUEL",
+    "meaning": "Fuel Surcharge",
+    "cost_type": "Accessorial",
+    "description": "Fuel Surcharge",
+    "category": "freight",
+    "tax_rate": 0.05,
+    "otm_accessorial_code": "FUEL",
+    "invoice_type": "shipment"
+  },
+  "INS": {
+    "code": "INS",
+    "meaning": "Cargo Insurance Premium",
+    "cost_type": "Accessorial",
+    "description": "Cargo Insurance Premium",
+    "category": "freight",
+    "tax_rate": 0.05,
+    "otm_accessorial_code": "INS",
+    "invoice_type": "shipment"
+  },
+  "DET": {
+    "code": "DET",
+    "meaning": "Detention Fee",
+    "cost_type": "Accessorial",
+    "description": "Container Detention Fee (excess free-time at destination)",
+    "category": "transport",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "DET",
+    "invoice_type": "shipment"
+  },
+  "DEM": {
+    "code": "DEM",
+    "meaning": "Demurrage Fee",
+    "cost_type": "Accessorial",
+    "description": "Port Demurrage Fee (excess free-time at terminal/port)",
+    "category": "transport",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "DEM",
+    "invoice_type": "shipment"
+  },
+  "OFR": {
+    "code": "OFR",
+    "meaning": "Ocean Freight",
+    "cost_type": "Freight",
+    "description": "Ocean Freight Charge (sea shipment)",
+    "category": "freight",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "OFR",
+    "invoice_type": "shipment"
+  },
+  "BAS": {
+    "code": "BAS",
+    "meaning": "Basic Ocean Freight",
+    "cost_type": "Freight",
+    "description": "Basic Ocean Freight Rate",
+    "category": "freight",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "BAS",
+    "invoice_type": "shipment"
+  },
+  "BAF": {
+    "code": "BAF",
+    "meaning": "Bunker Adjustment Factor",
+    "cost_type": "Accessorial",
+    "description": "Fuel Surcharge for Ocean Freight (BAF/CAF)",
+    "category": "freight",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "BAF",
+    "invoice_type": "shipment"
+  },
+  "THC": {
+    "code": "THC",
+    "meaning": "Terminal Handling Charge",
+    "cost_type": "Accessorial",
+    "description": "Origin/Destination Terminal Handling Charge",
+    "category": "freight",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "THC",
+    "invoice_type": "shipment"
+  },
+  "LSS": {
+    "code": "LSS",
+    "meaning": "Low Sulphur Surcharge",
+    "cost_type": "Accessorial",
+    "description": "IMO 2020 Low Sulphur Fuel Surcharge",
+    "category": "freight",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "LSS",
+    "invoice_type": "shipment"
+  },
+  "EBS": {
+    "code": "EBS",
+    "meaning": "Emergency Bunker Surcharge",
+    "cost_type": "Accessorial",
+    "description": "Emergency Bunker Surcharge",
+    "category": "freight",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "EBS",
+    "invoice_type": "shipment"
+  },
+  "PSS": {
+    "code": "PSS",
+    "meaning": "Peak Season Surcharge",
+    "cost_type": "Accessorial",
+    "description": "Peak Season Surcharge (July-October)",
+    "category": "freight",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "PSS",
+    "invoice_type": "shipment"
+  },
+  "CIC": {
+    "code": "CIC",
+    "meaning": "Container Imbalance Charge",
+    "cost_type": "Accessorial",
+    "description": "Equipment Repositioning / Container Imbalance Charge",
+    "category": "freight",
+    "tax_rate": 0.18,
+    "otm_accessorial_code": "CIC",
+    "invoice_type": "shipment"
+  }
+}

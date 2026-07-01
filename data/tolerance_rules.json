@@ -1,0 +1,94 @@
+{
+  "global": {
+    "default_tolerance_pct": 0.5,
+    "default_tolerance_abs": 100.0,
+    "duplicate_window_days": 30,
+    "low_confidence_threshold": 0.6,
+    "auto_approve_confidence": 0.85
+  },
+  "by_charge_code": {
+    "AFRT": {
+      "tolerance_pct": 0.3,
+      "tolerance_abs": 200.0,
+      "require_shipment_id": true
+    },
+    "DFRT": {
+      "tolerance_pct": 0.5,
+      "tolerance_abs": 60.0,
+      "require_shipment_id": false
+    },
+    "CUST": {
+      "tolerance_pct": 0.0,
+      "tolerance_abs": 0.0,
+      "require_shipment_id": false
+    },
+    "WHSE": {
+      "tolerance_pct": 1.0,
+      "tolerance_abs": 200.0,
+      "require_shipment_id": false
+    },
+    "TRANS": {
+      "tolerance_pct": 0.5,
+      "tolerance_abs": 100.0,
+      "require_shipment_id": false
+    },
+    "OFR": {
+      "tolerance_pct": 1.0,
+      "tolerance_abs": 2000.0,
+      "require_shipment_id": true
+    },
+    "BAS": {
+      "tolerance_pct": 1.0,
+      "tolerance_abs": 500.0,
+      "require_shipment_id": true
+    },
+    "BAF": {
+      "tolerance_pct": 1.0,
+      "tolerance_abs": 500.0,
+      "require_shipment_id": true
+    },
+    "DET": {
+      "tolerance_pct": 2.0,
+      "tolerance_abs": 500.0,
+      "require_shipment_id": true
+    },
+    "DEM": {
+      "tolerance_pct": 2.0,
+      "tolerance_abs": 500.0,
+      "require_shipment_id": true
+    },
+    "FUEL": {
+      "tolerance_pct": 1.0,
+      "tolerance_abs": 100.0,
+      "require_shipment_id": false
+    },
+    "INS": {
+      "tolerance_pct": 1.0,
+      "tolerance_abs": 100.0,
+      "require_shipment_id": false
+    },
+    "THC": {
+      "tolerance_pct": 0.5,
+      "tolerance_abs": 200.0,
+      "require_shipment_id": true
+    },
+    "LSS": {
+      "tolerance_pct": 1.0,
+      "tolerance_abs": 200.0,
+      "require_shipment_id": true
+    },
+    "EBS": {
+      "tolerance_pct": 1.0,
+      "tolerance_abs": 200.0,
+      "require_shipment_id": true
+    }
+  },
+  "validation_rules": {
+    "require_invoice_number": true,
+    "require_vendor_name": true,
+    "require_amount": true,
+    "require_currency": true,
+    "vat_tolerance": 0.02,
+    "allowed_currencies": ["AED", "USD", "EUR", "GBP", "INR"]
+  }
+}

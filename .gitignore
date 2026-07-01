@@ -1,0 +1,43 @@
+# Environment & secrets
+.env
+.env.*
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Database (generated at runtime)
+data/app.db
+data/app.db-shm
+data/app.db-wal
+
+# Storage (runtime generated files)
+storage/originals/
+storage/working_copies/
+storage/processed/
+storage/failed/
+
+# Logs
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Streamlit
+.streamlit/secrets.toml
