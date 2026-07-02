@@ -34,7 +34,9 @@ with col2:
     from src.ocr import tesseract_available
     if tesseract_available():
         st.success("Tesseract OCR — Installed & Ready")
-        tess_cmd = os.environ.get("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+        import platform as _pl
+        _tess_default = r"C:\Program Files\Tesseract-OCR\tesseract.exe" if _pl.system() == "Windows" else "tesseract"
+        tess_cmd = os.environ.get("TESSERACT_CMD", _tess_default)
         st.caption(f"Binary: `{tess_cmd}`")
     else:
         st.error("Tesseract — Not Installed")

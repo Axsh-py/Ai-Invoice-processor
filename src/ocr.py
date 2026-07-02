@@ -2,7 +2,11 @@ import os
 import re
 from pathlib import Path
 
-_TESSERACT_DEFAULT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+import platform as _platform
+_TESSERACT_DEFAULT = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    if _platform.system() == "Windows" else "tesseract"
+)
 
 # Invoice keywords — if digital text has at least 2 of these it's usable
 _INVOICE_KEYWORDS = [
