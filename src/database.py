@@ -272,7 +272,9 @@ def insert_full_invoice(
         )
 
         cur.execute(
-            "INSERT INTO invoice_payloads VALUES (?,?,?,?,?)",
+            """INSERT INTO invoice_payloads
+               (invoice_id, raw_text, extracted_json, validation_json, otm_payload_json)
+               VALUES (?,?,?,?,?)""",
             (invoice_id, raw_ocr_text, json.dumps(extracted, indent=2),
              json.dumps(validation, indent=2), json.dumps(otm_payload, indent=2)),
         )
