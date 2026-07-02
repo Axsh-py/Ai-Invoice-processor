@@ -206,7 +206,10 @@ section[data-testid="stSidebar"] [data-testid="stSlider"] div { color: #CBD5E1 !
 
 /* ── Inputs ─────────────────────────────────────────────────────────────────── */
 [data-testid="stTextInput"] > div > div > input,
-[data-testid="stNumberInput"] > div > div > input {
+[data-testid="stNumberInput"] > div > div > input,
+[data-testid="stNumberInput"] input,
+[data-testid="stNumberInput"] > div,
+[data-testid="stNumberInput"] > div > div {
     border-radius: 7px !important; border-color: #D1D5DB !important;
     background: white !important; font-size: 13.5px !important; color: #111827 !important;
 }

@@ -13,10 +13,8 @@ def build_otm_payload(extracted: Dict[str, Any], validation: Dict[str, Any]) -> 
     auto_create = v_status in ("PASSED",)
     erp_status = "ERP_DRAFT_CREATED" if auto_create else "WAITING_FOR_HUMAN_REVIEW"
     now_utc = datetime.now(tz=timezone.utc)
-    erp_invoice_id = (
-        "OTM-DRAFT-" + now_utc.strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:6]
-        if auto_create else ""
-    )
+    prefix = "OTM-DRAFT-" if auto_create else "OTM-REVIEW-"
+    erp_invoice_id = prefix + now_utc.strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:6]
 
     invoice_header = {
         "invoice_number": extracted.get("invoice_number"),
