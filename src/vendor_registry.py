@@ -194,10 +194,11 @@ OTM: Container Return → DET  |  Documentation/Delivery Order → DFRT  |  Frei
 
     "COSCO": {
         "vendor_id": "COSCO",
-        "name": "COSCO Shipping Lines",
+        "name": "COSCO SHIPPING LINES EMIRATES LLC",
         "short_name": "COSCO",
         "category": "sea",
         "otm_sp_alias": "COSCO",
+        "otm_sp_id": "CSL.300001666666666",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -209,28 +210,56 @@ OTM: Container Return → DET  |  Documentation/Delivery Order → DFRT  |  Frei
             ],
             "threshold": 80,
         },
-        "key_fields": ["receipt_number", "invoice_number", "line_items", "total_amount"],
+        "key_fields": [
+            "invoice_number", "mbl_number", "vessel_name", "voyage_number",
+            "origin_port", "destination_port", "container_number",
+            "customer_number", "line_items", "total_amount",
+        ],
         "charge_code_map": {
             "admin fee":        "DFRT",
+            "admin fees":       "DFRT",
+            "administration":   "DFRT",
             "documentation":    "DFRT",
             "delivery order":   "DFRT",
+            "do fee":           "DFRT",
             "ocean freight":    "OFR",
-            "default":          "OFR",
+            "sea freight":      "OFR",
+            "detention":        "DET",
+            "demurrage":        "DEM",
+            "default":          "DFRT",
         },
-        "extraction_prompt_hints": """VENDOR: COSCO Shipping Lines
+        "extraction_prompt_hints": """VENDOR: COSCO SHIPPING LINES EMIRATES LLC
 
-FORMAT RULES:
-- Receipt No: AE01 + 10+ digits (e.g. AE012603090001)
-- OR Tax Invoice: INV26 + 8+ digits (e.g. INV2603001533)
-- Simple table: SNo | Description | Amount
-- Total at bottom
+DOCUMENT LAYOUT (Tax Invoice format):
+  Header row:  Invoice No | Date of Supply | Due Date | Invoice Date
+  Row 2:       Booking Ref | B/L Number | Validity
+  Row 3:       Voyage Code | Vessel/Voy | ETA
+  Row 4:       POL | POD | FPD
+  Charge table: SNo | Description | Unit Rate | ROE | Unit Rate AED | No. Of Units | Net Amount | VAT% | VAT Amount | Payable Amount
+  Footer:      Container No's | Total Amount | Tax Amount Payable | Gross Amount Payable
 
-EXTRACT:
-- document_number: the AE01... or INV26... number
-- line_items: {seq, description, amount}
-- total_amount  |  currency: AED
+EXTRACT THESE FIELDS (all required):
+  invoice_number:    the INV26... or AE01... number (e.g. INV2603001533)
+  invoice_date:      Invoice Date field (DD/MM/YYYY)
+  mbl_number:        B/L Number field (e.g. COSU6442960720W) — format COSU + digits
+  voyage_number:     Voyage Code field (e.g. 0MDG0E1MA)
+  vessel_name:       Vessel/Voy field — take only the vessel name part before the voyage code
+                     e.g. "CMA CGM NEVADA 0MDG0E1MA" → vessel_name = "CMA CGM NEVADA"
+  origin_port:       POL field (e.g. Qingdao)
+  destination_port:  POD field (e.g. Jebel Ali)
+  container_number:  Container No's field (e.g. QLU2439612)
+  customer_number:   The account/reference number in the Invoice To section (e.g. 6445464000)
+  amount_due:        Net Amount or Total Amount (before VAT) — e.g. 1500.00
+  vat_amount:        Tax Amount Payable — e.g. 0.00
+  amount_due_with_vat: Gross Amount Payable — e.g. 1500.00
+  currency:          AED
+  line_items:        Each row in the charge table → {description, amount, currency, vat_percent}
 
-OTM: Admin/Documentation/Delivery → DFRT  |  Freight → OFR""",
+OTM CHARGE CODES:
+  Admin Fee / Admin Fees / Administration → DFRT
+  Documentation / Delivery Order → DFRT
+  Ocean Freight / Sea Freight → OFR
+  Detention → DET  |  Demurrage → DEM""",
     },
 
     "MAERSK": {

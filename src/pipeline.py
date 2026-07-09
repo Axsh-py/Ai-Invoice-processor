@@ -64,11 +64,21 @@ def process_invoice(
         if vendor_id != "UNKNOWN" and vendor_confidence >= 0.7:
             if vendor_info.get("otm_sp_id") and not extracted.get("service_provider_id"):
                 extracted["service_provider_id"] = vendor_info["otm_sp_id"]
-            # Set default charge code from vendor's charge_code_map if not extracted
-            if not extracted.get("charge_code"):
-                default_code = vendor_info.get("charge_code_map", {}).get("default")
-                if default_code:
-                    extracted["charge_code"] = default_code
+
+            charge_map = vendor_info.get("charge_code_map") or {}
+            if charge_map:
+                # Try to map using charge_description (set by mock_parse from table row)
+                desc_text = (extracted.get("charge_description") or "").lower().strip()
+                if desc_text:
+                    for kw, code in charge_map.items():
+                        if kw != "default" and kw.lower() in desc_text:
+                            extracted["charge_code"] = code
+                            break
+                # Fall back to vendor default when no match or still generic
+                if not extracted.get("charge_code"):
+                    default_code = charge_map.get("default")
+                    if default_code:
+                        extracted["charge_code"] = default_code
 
         db_log(None, STEP_AI_PARSING_COMPLETED, STATUS_OK,
                f"AI parse complete — vendor: {vendor_id} | charge: {extracted.get('charge_code')} "

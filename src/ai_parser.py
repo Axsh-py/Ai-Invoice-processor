@@ -46,25 +46,36 @@ def mock_parse_invoice(raw_text: str) -> dict:
                 charge_code = code
                 break
     if not charge_code:
-        # Table layout: standalone code on its own line between description and amount
         _tbl = re.search(r"\n([A-Z]{3,5})\n([0-9,]+\.[0-9]{2})", raw_text)
         _currencies = {"AED", "USD", "EUR", "GBP", "INR", "VAT"}
         if _tbl and _tbl.group(1) not in _currencies:
             charge_code = _tbl.group(1)
-    if not charge_code:
-        charge_code = "AFRT"
+    # Intentionally leave None — pipeline/vendor-registry will set vendor-specific code.
+    # Do NOT default to "AFRT" here; that would block vendor-registry override.
 
-    code_data = charge_master.get(charge_code, {})
+    # Try to extract raw charge description from table row (e.g. "1  ADMIN FEES  AED 1500.00")
+    raw_charge_desc = _find(
+        r"\b\d+\s+([A-Z][A-Z\s&/\-]{3,40}?)(?:\s{2,}|\s+(?:AED|USD|EUR|INR)|\s+[\d,]+\.)",
+        raw_text, "")
 
-    # Handle both "Label: Value" on one line AND table layouts where value is on the next line
-    amount_str = _find(r"(?:Freight\s*Charge|Charge\s*Amount|Amount\s*Due|Amount)\s*[:\-]\s*\n?\s*([0-9,]+\.?[0-9]*)", raw_text, "")
+    code_data = charge_master.get(charge_code or "", {})
+
+    # ── Amount extraction — handles "Label: AED 1500.00" and plain numeric formats ──
+    amount_str = _find(
+        r"(?:Freight\s*Charge|Charge\s*Amount|Amount\s*Due|Net\s*Amount)"
+        r"\s*[:\-]\s*\n?\s*(?:[A-Z]{3}\s*)?([0-9,]+\.?[0-9]*)", raw_text, "")
     if not amount_str:
-        # Table layout: charge code followed immediately by amount on next line
-        amount_str = re.search(rf"{re.escape(charge_code)}\s*\n\s*([0-9,]+\.?[0-9]*)", raw_text, re.IGNORECASE)
+        # "Gross Amount Payable: AED 1500.00" / "Total Amount: AED 1500.00"
+        amount_str = _find(
+            r"(?:Gross\s*Amount\s*Payable|Total\s*Amount|Grand\s*Total)"
+            r"\s*[:\-]?\s*(?:[A-Z]{3}\s*)?([0-9,]+\.?[0-9]*)", raw_text, "")
+    if not amount_str:
+        amount_str = re.search(rf"{re.escape(charge_code)}\s*\n\s*([0-9,]+\.?[0-9]*)",
+                               raw_text, re.IGNORECASE)
         amount_str = amount_str.group(1) if amount_str else "0"
     amount = float(amount_str.replace(",", "") or 0)
 
-    # GST components (Indian invoices)
+    # ── GST components (Indian invoices) ──────────────────────────────────────
     cgst_str = _find(r"(?:IN:\s*)?Central\s*GST[^0-9\n]*([0-9,]+\.?[0-9]*)", raw_text, "")
     sgst_str = _find(r"(?:IN:\s*)?State\s*GST[^0-9\n]*([0-9,]+\.?[0-9]*)", raw_text, "")
     igst_str = _find(r"IGST[^0-9\n]*([0-9,]+\.?[0-9]*)", raw_text, "")
@@ -72,54 +83,121 @@ def mock_parse_invoice(raw_text: str) -> dict:
     sgst_amount: Optional[float] = float(sgst_str.replace(",", "")) if sgst_str else None
     igst_amount: Optional[float] = float(igst_str.replace(",", "")) if igst_str else None
 
-    # Detect tax system
     has_gst = bool(cgst_str or sgst_str or igst_str or re.search(r"\bGST\b", raw_text))
     has_vat = bool(re.search(r"\bVAT\b", raw_text))
     tax_type = "GST" if has_gst else ("VAT" if has_vat else "NONE")
 
-    # Total tax amount
     if cgst_amount is not None or sgst_amount is not None:
         vat_amount: Optional[float] = round((cgst_amount or 0) + (sgst_amount or 0), 2)
     elif igst_amount is not None:
         vat_amount = igst_amount
     else:
-        vat_str = _find(r"(?:VAT|Tax)\s*(?:\([^)]*\))?\s*[:\-]\s*\n?\s*([0-9,]+\.?[0-9]*)", raw_text, "")
+        # Handles "Tax Amount Payable: AED 0.00" and plain "VAT: 75.00"
+        vat_str = _find(
+            r"(?:Tax\s*Amount\s*Payable|VAT\s*Amount|Tax\s*Amount|VAT)"
+            r"\s*(?:Payable)?\s*[:\-]?\s*(?:[A-Z]{3}\s*)?([0-9,]+\.?[0-9]*)",
+            raw_text, "")
         vat_amount = float(vat_str.replace(",", "")) if vat_str else None
 
-    total_str = _find(r"(?:Total\s*Due|Amount\s*Due|Grand\s*Total|Total)\s*[:\-]?\s*\n?\s*([0-9,]+\.?[0-9]*)", raw_text, "")
+    total_str = _find(
+        r"(?:Gross\s*Amount\s*Payable|Grand\s*Total|Total\s*Due|Amount\s*Due)"
+        r"\s*[:\-]?\s*(?:[A-Z]{3}\s*)?([0-9,]+\.?[0-9]*)", raw_text, "")
     total_amount: Optional[float] = float(total_str.replace(",", "")) if total_str else None
 
-    # Require at least one digit to avoid grabbing adjacent label words ("Invoice", "Date")
-    invoice_number = _find(r"Invoice\s*(?:No|Number|#)\s*[:\-]\s*([A-Z0-9\/\-]*[0-9][A-Z0-9\/\-]*)", raw_text, "")
+    # ── Invoice number ────────────────────────────────────────────────────────
+    invoice_number = _find(
+        r"Invoice\s*(?:No|Number|#)\s*[:\-]?\s*\n?\s*([A-Z0-9][A-Z0-9\/\-]{2,})",
+        raw_text, "")
     if not invoice_number:
-        invoice_number = _find(r"(?:Ref|Reference)\s*[:\-]\s*([A-Z0-9\/\-]*[0-9][A-Z0-9\/\-]*)", raw_text, "")
+        invoice_number = _find(
+            r"(?:Ref|Reference)\s*[:\-]\s*([A-Z0-9\/\-]*[0-9][A-Z0-9\/\-]*)",
+            raw_text, "")
 
-    # MBL / Bill of Lading number
-    mbl_number = _find(r"(?:Bill\s*of\s*Lading|B/?L\s*(?:No|Number|#)?|MBL|HBL)\s*[:\-]?\s*([A-Z0-9]{6,20})", raw_text, "")
+    # ── MBL / Bill of Lading ─────────────────────────────────────────────────
+    # Cross-line first: "B/L Number : Validity:\nCOSU6442960720W"
+    mbl_number = ""
+    for _pat in [
+        r"B/?L\s*(?:No\.?|Number|#)?\s*[:\-][^\n]*\n\s*([A-Z]{2,4}[0-9]{7,}[A-Z]?)",
+        r"(?:Bill\s*of\s*Lading|MBL|HBL)\s*[:\-]?\s*\n?\s*([A-Z]{2,4}[0-9]{7,}[A-Z]?)",
+    ]:
+        _m = re.search(_pat, raw_text, re.IGNORECASE)
+        if _m:
+            mbl_number = _m.group(1).strip()
+            break
 
-    # Customer / Account number
-    customer_number = _find(r"(?:Customer\s*(?:No|Number|ID)|Account\s*(?:No|Number)|Customer\s*#)\s*[:\-]\s*([A-Z0-9]+)", raw_text, "")
+    # ── Vessel name ──────────────────────────────────────────────────────────
+    # Cross-line: "Vessel/Voy:\n0MDG0E1MA CMA CGM NEVADA 0MDG0E1MA"
+    # Skip first token (voyage code), capture all-caps words until next code
+    _vm = re.search(
+        r"Vessel\s*(?:/\s*Voy)?\s*[:\-][^\n]*\n\s*\S+\s+((?:[A-Z][A-Z]* ){1,5}[A-Z]+)",
+        raw_text)
+    if _vm:
+        vessel_name = _vm.group(1).strip()
+    else:
+        vessel_name = _find(
+            r"Vessel\s*(?:/\s*Voy(?:age)?)?\s*[:\-]\s*([A-Z][A-Z0-9 ]{3,40?}?)"
+            r"(?:\s+[0-9A-Z]{6,}|\n|$)",
+            raw_text, "")
+        if not vessel_name:
+            vessel_name = _find(r"Vessel\s*[:\-]\s*(.+?)(?:\n|$)", raw_text, "")
 
+    # ── Voyage number ─────────────────────────────────────────────────────────
+    # Cross-line: "Voyage Code :\n0MDG0E1MA CMA CGM NEVADA..."
+    voyage_number = _find(
+        r"Voyage\s*(?:Code|No\.?|Number)?\s*[:\-][^\n]*\n\s*([A-Z0-9]{5,15})", raw_text, "")
+    if not voyage_number:
+        voyage_number = _find(
+            r"Voyage\s*(?:Code|No\.?|Number)?\s*[:\-]\s*([A-Z0-9]{5,15})", raw_text, "")
+
+    # ── POL / POD — value may be on the same or next line ────────────────────
+    pol = _find(r"POL\s*[:\-]\s*([A-Za-z][A-Za-z ]{2,30})(?:\n|\s{2,}|POD|$)",
+                raw_text, "")
+    pod = _find(r"POD\s*[:\-]\s*([A-Za-z][A-Za-z ]{2,30})(?:\n|\s{2,}|FPD|$)",
+                raw_text, "")
+    # Fallback: labels on one line, values on next line
+    # "POL: POD: FPD:\nQingdao Jebel Ali Jebel Ali"
+    if not pol:
+        _m = re.search(r"POL\s*:\s*POD\s*:.*?\n(.*?)(?:\n|$)", raw_text, re.DOTALL)
+        if _m:
+            _words = _m.group(1).strip().split()
+            _n = len(_words)
+            # Detect repeated trailing suffix (FPD usually equals POD)
+            _found = False
+            for _sfx in range(1, _n // 2 + 1):
+                if _words[-_sfx:] == _words[-2 * _sfx:-_sfx]:
+                    pod = " ".join(_words[-_sfx:])
+                    pol = " ".join(_words[:_n - 2 * _sfx]) or _words[0]
+                    _found = True
+                    break
+            if not _found:
+                pol = _words[0] if _words else ""
+                pod = " ".join(_words[1:]) if len(_words) > 1 else ""
+
+    route = _find(r"Route\s*[:\-]\s*(.+?)(?:\n|$)", raw_text, "")
+    if not route and pol and pod:
+        route = f"{pol.strip()} to {pod.strip()}"
+
+    # ── Container number — 3–4 letter owner code + 6–7 digits ────────────────
+    container_number = _find(r"\b([A-Z]{3,4}[0-9]{6,7})\b", raw_text, "")
+
+    # ── Customer / Account number ─────────────────────────────────────────────
+    customer_number = _find(
+        r"(?:Customer\s*(?:No\.?|Number|ID|#)|Account\s*(?:No\.?|Number)|Client\s*(?:No\.?|#|Code))"
+        r"\s*[:\-]?\s*([A-Z0-9]{4,20})", raw_text, "")
+
+    # ── Vendor name ───────────────────────────────────────────────────────────
     vendor_name = _find(r"Vendor\s*[:\-]\s*(.+)", raw_text, "")
     if not vendor_name:
-        # For real-world invoices: "On behalf of" / "Bill-to Party" patterns
         vendor_name = _find(r"(?:On\s*behalf\s*of|Issued\s*by)\s*[:\-]\s*(.+)", raw_text, "")
 
     invoice_date = _find(r"Invoice\s*Date\s*[:\-]\s*([0-9A-Za-z\-\.\/ ]+)", raw_text,
                          datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"))
     service_provider_id = _find(r"Service\s*Provider\s*ID\s*[:\-]\s*([A-Z0-9\.]+)", raw_text, "")
     shipment_id = _find(r"Shipment\s*ID\s*[:\-]\s*([A-Z0-9\-]+)", raw_text, "")
-    # Detect currency from text — look for explicit Currency: field or 3-letter code before amounts
+
     currency = _find(r"Currency\s*[:\-]\s*([A-Z]{3})", raw_text, "")
     if not currency:
         currency = _find(r"\b(INR|AED|USD|EUR|GBP|SGD|SAR|QAR|OMR|BHD|KWD)\b", raw_text, "AED")
-    route = _find(r"Route\s*[:\-]\s*(.+?)(?:\n|$)", raw_text, "")
-    if not route:
-        # Try POL/POD pattern: "POL: X ... POD: Y"
-        pol = _find(r"POL\s*[:\-]\s*(.+?)(?:\s{2,}|\n)", raw_text, "")
-        pod = _find(r"POD\s*[:\-]\s*(.+?)(?:\s{2,}|\n)", raw_text, "")
-        if pol and pod:
-            route = f"{pol.strip()} to {pod.strip()}"
 
     missing_fields = []
     if not invoice_number:
@@ -136,37 +214,43 @@ def mock_parse_invoice(raw_text: str) -> dict:
     )
 
     return {
-        "vendor_name": vendor_name or None,
-        "invoice_number": invoice_number or None,
-        "invoice_date": invoice_date,
+        "vendor_name":         vendor_name or None,
+        "invoice_number":      invoice_number or None,
+        "invoice_date":        invoice_date,
         "service_provider_id": service_provider_id or None,
-        "customer_number": customer_number or None,
-        "mbl_number": mbl_number or None,
-        "shipment_id": shipment_id or None,
-        "charge_code": charge_code,
-        "charge_description": code_data.get("description"),
-        "invoice_type": code_data.get("invoice_type"),
-        "invoice_category": code_data.get("category", "unknown"),
-        "currency": currency,
-        "amount_due": amount,
-        "tax_type": tax_type,
-        "vat_amount": vat_amount,
+        "customer_number":     customer_number or None,
+        "mbl_number":          mbl_number or None,
+        "bl_number":           mbl_number or None,
+        "shipment_id":         shipment_id or None,
+        "vessel_name":         vessel_name or None,
+        "voyage_number":       voyage_number or None,
+        "origin_port":         pol or None,
+        "destination_port":    pod or None,
+        "container_number":    container_number or None,
+        "charge_code":         charge_code or None,
+        "charge_description":  raw_charge_desc or code_data.get("description") or None,
+        "invoice_type":        code_data.get("invoice_type"),
+        "invoice_category":    code_data.get("category", "unknown"),
+        "currency":            currency,
+        "amount_due":          amount,
+        "tax_type":            tax_type,
+        "vat_amount":          vat_amount,
         "amount_due_with_vat": total_amount,
-        "cgst_amount": cgst_amount,
-        "sgst_amount": sgst_amount,
-        "igst_amount": igst_amount,
-        "route_or_port": route or None,
+        "cgst_amount":         cgst_amount,
+        "sgst_amount":         sgst_amount,
+        "igst_amount":         igst_amount,
+        "route_or_port":       route or None,
         "line_items": [
             {
                 "line_item_sequence": 1,
-                "charge_code": charge_code,
-                "description": code_data.get("description", ""),
-                "amount": amount,
-                "currency": currency,
+                "charge_code":   charge_code or "AFRT",
+                "description":   raw_charge_desc or code_data.get("description", ""),
+                "amount":        amount,
+                "currency":      currency,
             }
         ],
-        "missing_fields": missing_fields,
-        "possible_errors": [],
+        "missing_fields":   missing_fields,
+        "possible_errors":  [],
         "confidence_score": confidence,
     }
 
@@ -313,7 +397,20 @@ _MBL_PATS = [
     r"(?:b/?l|swb)\s*(?:no\.?|#)?\s*[:\-]?\s*([A-Z0-9]{8,20})",
 ]
 _CURRENCY_PAT = r"\b(AED|USD|EUR|GBP|INR|SAR|QAR|KWD|BHD|OMR)\b"
-_CONTAINER_PAT = r"\b([A-Z]{4}\d{7})\b"
+_CONTAINER_PAT = r"\b([A-Z]{3,4}[0-9]{6,7})\b"
+_VESSEL_PATS = [
+    # Cross-line: "Vessel/Voy:\n0MDG0E1MA CMA CGM NEVADA 0MDG0E1MA"
+    r"[Vv]essel\s*(?:/\s*[Vv]oy)?\s*[:\-][^\n]*\n\s*\S+\s+((?:[A-Z][A-Z]* ){1,5}[A-Z]+)",
+    # Same-line: "Vessel/Voy: CMA CGM NEVADA 0MDG0E1MA" — stop before voyage code
+    r"[Vv]essel\s*(?:/\s*[Vv]oy(?:age)?)?\s*[:\-]\s*([A-Z][A-Z0-9 ]{3,40?}?)(?:\s+[A-Z0-9]{6,}|\n|$)",
+    r"[Vv]essel\s*[Nn]ame\s*[:\-]\s*(.+?)(?:\n|$)",
+]
+_VOYAGE_PATS = [
+    # Cross-line: "Voyage Code :\n0MDG0E1MA CMA CGM NEVADA..."
+    r"[Vv]oyage\s*(?:[Cc]ode|[Nn]o\.?|[Nn]umber)?\s*[:\-][^\n]*\n\s*([A-Z0-9]{5,15})",
+    r"[Vv]oyage\s*(?:[Cc]ode|[Nn]o\.?|[Nn]umber)?\s*[:\-]\s*([A-Z0-9]{5,15})",
+    r"[Vv]oy\.?\s*[:\-]\s*([A-Z0-9]{5,15})",
+]
 _CUST_NO_PATS = [
     r"(?:customer|client|account|cust\.?)\s*(?:no\.?|number|#|id|code)\s*[:\-]?\s*([\w\-]{4,20})",
 ]
@@ -381,13 +478,31 @@ def smart_refill_missing_fields(
             except Exception:
                 pass
 
-    # MBL / AWB
+    # MBL / AWB — also try direct carrier-code patterns (COSU, HLCU, MSCU…)
     if not extracted.get("mbl_number") and not extracted.get("awb_number"):
         val = _try(_MBL_PATS, "mbl_number")
+        if not val:
+            # Require exactly 4 uppercase letters + 9+ digits to avoid matching
+            # invoice numbers like "INV2603001533" (only 3 letters)
+            _m = re.search(r"\b([A-Z]{4}[0-9]{9,}[A-Z]?)\b", t)
+            if _m:
+                val = _m.group(1)
         if val:
             filled["mbl_number"] = val.upper().replace(" ", "")
 
-    # Container number
+    # Vessel name
+    if not extracted.get("vessel_name"):
+        val = _try(_VESSEL_PATS, "vessel_name")
+        if val:
+            filled["vessel_name"] = val.strip()
+
+    # Voyage number
+    if not extracted.get("voyage_number"):
+        val = _try(_VOYAGE_PATS, "voyage_number")
+        if val:
+            filled["voyage_number"] = val.strip()
+
+    # Container number — 3-4 letter prefix + 6-7 digits
     if not extracted.get("container_number"):
         m = re.search(_CONTAINER_PAT, t)
         if m:
@@ -398,6 +513,13 @@ def smart_refill_missing_fields(
         val = _try(_CUST_NO_PATS, "customer_number")
         if val:
             filled["customer_number"] = val
+        else:
+            # Bare TRN/account number below "Invoice to:" address block (COSCO-style)
+            _cm = re.search(
+                r"Invoice\s+[Tt]o[^\n]*\n(?:[^\n]+\n){1,4}(\d{8,12})\s*(?:\n|$)",
+                t)
+            if _cm:
+                filled["customer_number"] = _cm.group(1)
 
     # Vendor name from registry when AI left it blank
     if not extracted.get("vendor_name") and vendor_id and vendor_id != "UNKNOWN":

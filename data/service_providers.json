@@ -78,16 +78,16 @@
     "contact_email": "invoices@cma-cgm.com"
   },
   {
-    "service_provider_id": "CSC.300001777777777",
+    "service_provider_id": "CSL.300001666666666",
     "alias": "COSCO",
-    "name": "COSCO Shipping Lines",
+    "name": "COSCO SHIPPING LINES EMIRATES LLC",
     "country": "UAE",
     "currency": "AED",
-    "tax_id": "TRN100678901230001",
+    "tax_id": "TRN100047609100003",
     "payment_terms": "NET30",
     "approved": true,
     "charge_codes": ["OFR", "DET", "DEM", "THC", "BAF", "DFRT"],
-    "name_keywords": ["cosco", "cosco shipping"],
+    "name_keywords": ["cosco", "cosco shipping", "cosco shipping lines"],
     "contact_email": "invoices@cosco.com"
   },
   {
