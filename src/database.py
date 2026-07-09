@@ -145,7 +145,8 @@ def _connect() -> sqlite3.Connection:
 def init_db() -> None:
     with _connect() as conn:
         conn.executescript(_SCHEMA)
-        # Migrations for columns added after initial deployment
+
+        # ── Column-add migrations (safe to re-run; silently skip if exists) ──
         for ddl in [
             "ALTER TABLE extracted_data ADD COLUMN corrected_by TEXT",
             "ALTER TABLE extracted_data ADD COLUMN corrected_at TEXT",
@@ -158,6 +159,40 @@ def init_db() -> None:
                 conn.execute(ddl)
             except Exception:
                 pass  # column already exists
+
+        # ── Drop UNIQUE constraint from otm_drafts.otm_invoice_id ───────────
+        # SQLite can't ALTER CONSTRAINT, so we must recreate the table.
+        # Multiple invoices from the same vendor may share a NULL document ID
+        # and the UNIQUE constraint caused IntegrityError on the second upload.
+        try:
+            row = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='otm_drafts'"
+            ).fetchone()
+            if row and "UNIQUE" in (row[0] or "").upper():
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS otm_drafts_v2 (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        invoice_id INTEGER NOT NULL,
+                        otm_invoice_id TEXT,
+                        otm_payload_json TEXT,
+                        draft_status TEXT DEFAULT 'PENDING',
+                        approved_by TEXT,
+                        approved_at TEXT,
+                        rejected_reason TEXT,
+                        created_at TEXT
+                    )
+                """)
+                conn.execute(
+                    "INSERT OR IGNORE INTO otm_drafts_v2 "
+                    "SELECT id, invoice_id, otm_invoice_id, otm_payload_json, "
+                    "       draft_status, approved_by, approved_at, rejected_reason, created_at "
+                    "FROM otm_drafts"
+                )
+                conn.execute("DROP TABLE otm_drafts")
+                conn.execute("ALTER TABLE otm_drafts_v2 RENAME TO otm_drafts")
+        except Exception:
+            pass
+
         conn.commit()
 
 
