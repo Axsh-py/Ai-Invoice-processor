@@ -106,6 +106,16 @@ def validate_invoice(extracted: Dict[str, Any]) -> Dict[str, Any]:
     if missing:
         warnings.append("AI-flagged missing fields: " + ", ".join(missing))
 
+    # Warnings that are informational — don't block auto-approval for known vendors.
+    # Tax mismatch is non-blocking for known vendors because international freight
+    # charges are often zero-rated in UAE (DEST.DOC FEE, equipment fees, etc.).
+    _NON_BLOCKING = ("No matching shipment found", "AI-flagged missing fields", "Tax mismatch")
+    blocking_warnings = [w for w in warnings if not any(nb in w for nb in _NON_BLOCKING)]
+    vendor_known = (
+        extracted.get("vendor_id", "UNKNOWN") not in ("UNKNOWN", "", None)
+        and float(extracted.get("vendor_confidence") or 0) >= 0.7
+    )
+
     if is_duplicate:
         validation_status = "DUPLICATE"
         match_status = "DUPLICATE"
@@ -118,16 +128,26 @@ def validate_invoice(extracted: Dict[str, Any]) -> Dict[str, Any]:
     elif warnings:
         cross_currency = any("Currency mismatch" in w for w in warnings)
         unknown_vendor = not matched_sp
-        if cross_currency or unknown_vendor:
-            # Can't auto-approve when vendor is unknown or currencies differ — send to review
+
+        if cross_currency:
             validation_status = "REVIEW_REQUIRED"
             match_status = "EXCEPTION_REVIEW"
-        elif matched_shipment and in_tolerance and not [w for w in warnings if "Amount mismatch" in w]:
+        elif unknown_vendor and not vendor_known:
+            # Truly unknown vendor — send to review
+            validation_status = "REVIEW_REQUIRED"
+            match_status = "EXCEPTION_REVIEW"
+        elif blocking_warnings:
+            # Has real blocking issues (amount mismatch, bad charge code, etc.)
+            validation_status = "REVIEW_REQUIRED"
+            match_status = "MATCHED_IN_TOLERANCE" if (matched_shipment and in_tolerance) else "EXCEPTION_REVIEW"
+        elif matched_shipment and in_tolerance:
+            # Shipment matched in tolerance, only non-blocking warnings remain
             validation_status = "PASSED"
             match_status = "MATCHED_IN_TOLERANCE"
-        elif matched_shipment and in_tolerance:
-            validation_status = "REVIEW_REQUIRED"
-            match_status = "MATCHED_IN_TOLERANCE"
+        elif vendor_known and not matched_shipment:
+            # Known vendor, no reference shipment (common for DO/port charges) — auto-pass
+            validation_status = "PASSED"
+            match_status = "NO_SHIPMENT_FOUND"
         else:
             validation_status = "REVIEW_REQUIRED"
             match_status = "EXCEPTION_REVIEW"

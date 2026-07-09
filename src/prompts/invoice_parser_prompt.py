@@ -99,3 +99,94 @@ def build_user_prompt(ocr_text: str) -> str:
 
 def build_repair_prompt(ocr_text: str) -> str:
     return JSON_REPAIR_PROMPT.format(ocr_text=ocr_text)
+
+
+# ── Vendor-aware prompt builders ──────────────────────────────────────────────
+
+VENDOR_SYSTEM_PROMPT = """You are an expert invoice automation parser for Oracle OTM (Oracle Transportation Management).
+
+You receive raw OCR text from a specific vendor's invoice and extract structured data.
+You have been given vendor-specific format instructions in the user message.
+
+STRICT RULES:
+1. Extract ONLY from the provided OCR text. Do NOT invent or hallucinate values.
+2. If a field is not found, use null — never guess.
+3. Return ONLY valid JSON — no prose, no markdown, no explanation.
+4. Populate vendor_specific_fields with all fields unique to this vendor format.
+5. Always extract ALL line items from the invoice table — never truncate.
+6. Amounts: use numbers (not strings). Strip commas from numbers.
+7. currency: always 3-letter ISO code (AED, USD, INR, EUR).
+8. confidence_score (0.0–1.0): 0.9+ = all key fields found, 0.7+ = mostly found, below 0.5 = major gaps.
+9. List missing/uncertain fields in missing_fields. List anomalies in possible_errors.
+10. charge_code must be an OTM accessorial code: AFRT, DFRT, OFR, CUST, TRANS, DEM, DET, THC, LSS, BAF, EBS, PSS, FUEL, WHSE, CIC, or the raw code if unknown.
+"""
+
+VENDOR_USER_PROMPT_TEMPLATE = """{vendor_hints}
+
+---
+Return ONLY a single valid JSON object with this schema:
+{{
+  "invoice_number": string or null,
+  "invoice_date": string or null,
+  "vendor_name": string or null,
+  "vendor_id": "{vendor_id}",
+  "customer_number": string or null,
+  "mbl_number": string or null,
+  "awb_number": string or null,
+  "currency": string or null,
+  "amount_due": number or null,
+  "vat_amount": number or null,
+  "amount_due_with_vat": number or null,
+  "tax_type": "VAT"|"GST"|"NONE"|null,
+  "charge_code": string or null,
+  "charge_description": string or null,
+  "invoice_category": "shipment"|"delivery"|"freight"|"customs"|"warehouse"|"transport"|"unknown",
+  "shipment_id": string or null,
+  "route_or_port": string or null,
+  "origin_port": string or null,
+  "destination_port": string or null,
+  "vessel_name": string or null,
+  "voyage_number": string or null,
+  "container_number": string or null,
+  "vendor_specific_fields": {{
+    "any additional fields unique to this vendor format"
+  }},
+  "line_items": [
+    {{
+      "line_item_sequence": number,
+      "charge_code": string or null,
+      "description": string or null,
+      "amount": number or null,
+      "currency": string or null,
+      "qty": number or null,
+      "rate": number or null,
+      "vat_percent": number or null,
+      "vat_amount": number or null,
+      "total_with_vat": number or null,
+      "extra": {{}}
+    }}
+  ],
+  "confidence_score": number,
+  "missing_fields": [string],
+  "possible_errors": [string]
+}}
+
+RAW INVOICE OCR TEXT:
+{ocr_text}
+"""
+
+
+def build_vendor_user_prompt(ocr_text: str, vendor_id: str) -> str:
+    """Build a vendor-specific extraction prompt."""
+    try:
+        from ..vendor_registry import VENDOR_REGISTRY
+        vendor = VENDOR_REGISTRY.get(vendor_id, {})
+        hints = vendor.get("extraction_prompt_hints", "No vendor-specific hints available.")
+    except Exception:
+        hints = f"Vendor ID: {vendor_id}. Extract all standard invoice fields."
+
+    return VENDOR_USER_PROMPT_TEMPLATE.format(
+        vendor_hints=hints,
+        vendor_id=vendor_id,
+        ocr_text=ocr_text,
+    )

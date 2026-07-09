@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .prompts.invoice_parser_prompt import SYSTEM_PROMPT, build_user_prompt, build_repair_prompt
+from .prompts.invoice_parser_prompt import build_vendor_user_prompt, VENDOR_SYSTEM_PROMPT
 from .schemas import validate_extracted_json
 
 
@@ -223,3 +224,59 @@ def parse_invoice(raw_text: str, mode: str = "mock") -> dict:
         return final
     except Exception:
         return result
+
+
+def openai_parse_invoice_for_vendor(raw_text: str, vendor_id: str) -> dict:
+    """Vendor-specific extraction using OpenAI with vendor-aware prompt."""
+    from openai import OpenAI
+    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+    def _call(system: str, user: str) -> dict:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user",   "content": user},
+            ],
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+        return json.loads(response.choices[0].message.content)
+
+    try:
+        user_prompt = build_vendor_user_prompt(raw_text, vendor_id)
+        raw = _call(VENDOR_SYSTEM_PROMPT, user_prompt)
+        try:
+            validated = validate_extracted_json(raw)
+            result = validated.to_dict()
+        except Exception:
+            result = raw
+        result["vendor_id"] = vendor_id
+        result["_parsed_with"] = "vendor_openai"
+        return result
+    except Exception as exc:
+        fallback = mock_parse_invoice(raw_text)
+        fallback["vendor_id"] = vendor_id
+        fallback["ai_fallback_reason"] = f"vendor OpenAI call failed: {exc}"
+        fallback["_parsed_with"] = "mock_fallback"
+        return fallback
+
+
+def parse_invoice_for_vendor(
+    raw_text: str,
+    vendor_id: str = "UNKNOWN",
+    mode: str = "mock",
+) -> dict:
+    """
+    Vendor-aware extraction entry point.
+    Uses vendor-specific prompt when vendor_id is known.
+    Falls back to generic parser for UNKNOWN vendors.
+    """
+    if vendor_id and vendor_id != "UNKNOWN" and mode == "openai" and os.environ.get("OPENAI_API_KEY"):
+        return openai_parse_invoice_for_vendor(raw_text, vendor_id)
+
+    # Generic parse (mock or openai without vendor context)
+    result = parse_invoice(raw_text, mode=mode)
+    result["vendor_id"] = vendor_id
+    result["_parsed_with"] = f"generic_{mode}"
+    return result

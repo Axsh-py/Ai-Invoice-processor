@@ -8,7 +8,11 @@ from .config import DATA_DIR
 # Words that don't help identify a company — ignored during fuzzy matching
 _STOP_WORDS = {"pvt", "ltd", "private", "limited", "llc", "fze", "inc", "ag",
                "gmbh", "co", "corp", "company", "india", "uae", "express",
-               "international", "group", "holdings", "and", "the"}
+               "international", "group", "holdings", "and", "the",
+               # Generic logistics words — too common to distinguish vendors
+               "shipping", "lines", "line", "cargo", "freight", "air", "sea",
+               "logistics", "maritime", "transport", "services", "agency",
+               "courier", "forwarding", "forwarder"}
 
 _SHIPMENTS: Optional[list] = None
 _SERVICE_PROVIDERS: Optional[list] = None
@@ -17,8 +21,7 @@ _CHARGE_MASTER: Optional[dict] = None
 
 def _load_shipments() -> list:
     global _SHIPMENTS
-    if _SHIPMENTS is not None:
-        return _SHIPMENTS
+    _SHIPMENTS = None  # always reload — data files may change between requests
     path = DATA_DIR / "mock_shipments.json"
     _SHIPMENTS = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
     return _SHIPMENTS
@@ -26,8 +29,7 @@ def _load_shipments() -> list:
 
 def _load_service_providers() -> list:
     global _SERVICE_PROVIDERS
-    if _SERVICE_PROVIDERS is not None:
-        return _SERVICE_PROVIDERS
+    _SERVICE_PROVIDERS = None  # always reload
     path = DATA_DIR / "service_providers.json"
     _SERVICE_PROVIDERS = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
     return _SERVICE_PROVIDERS
@@ -114,38 +116,50 @@ def match_shipment(extracted: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     mbl_number = (extracted.get("mbl_number") or "").strip()
     vendor = (extracted.get("vendor_name") or "").lower()
     route = (extracted.get("route_or_port") or "").lower()
+    vendor_id = (extracted.get("vendor_id") or "").upper()
 
     scored = []
     for s in shipments:
-        score = 0
+        # Non-amount identifying signals — must have at least one to qualify
+        non_amount_score = 0
         if shipment_id and s["shipment_id"] == shipment_id:
-            score += 50
+            non_amount_score += 50
         if mbl_number and s.get("mbl_number", "") == mbl_number:
-            score += 50
+            non_amount_score += 50
         if s.get("invoice_number_hint", "") == invoice_no:
-            score += 30
-        if s.get("expected_charge_code", "").upper() == code:
-            score += 25
+            non_amount_score += 30
+        # vendor_id direct match — strongest signal for known vendors
+        if vendor_id and vendor_id != "UNKNOWN" and s.get("vendor_id", "") == vendor_id:
+            non_amount_score += 35
+        if s.get("expected_charge_code", "").upper() == code and code:
+            non_amount_score += 25
         sp_id = extracted.get("service_provider_id") or ""
         if sp_id and s.get("service_provider_id") == sp_id:
-            score += 20
+            non_amount_score += 20
         elif vendor and s.get("vendor_name", "").lower() in vendor:
-            score += 10
+            non_amount_score += 10
         if route:
             shipment_route = s.get("route", "").lower()
             if any(word in shipment_route for word in route.split() if len(word) > 3):
-                score += 10
-        tol = float(s.get("tolerance_amount", 100))
+                non_amount_score += 10
+
+        # Amount score ONLY added when there's already an identifying signal
+        # This prevents a 300 AED invoice from randomly matching an 850 AED Aramex shipment
+        amount_score = 0
         diff = abs(float(s.get("expected_amount", 0)) - amount)
-        if diff <= tol:
-            score += 20
-        elif amount > 0:
-            score += max(0, 10 - int(diff / 1000))
-        scored.append((score, diff, s))
+        if non_amount_score >= 10:
+            tol = float(s.get("tolerance_amount", 100))
+            if diff <= tol:
+                amount_score = 20
+            elif amount > 0:
+                amount_score = max(0, 10 - int(diff / 1000))
+
+        total_score = non_amount_score + amount_score
+        scored.append((total_score, diff, s))
 
     scored.sort(key=lambda x: (-x[0], x[1]))
     best_score, best_diff, best = scored[0]
-    # Require at least one identifying signal (10 pts = charge code or partial amount alone is not enough)
+    # Require genuine identifying signal — amount proximity alone cannot qualify
     if best_score < 10:
         return None
     return best

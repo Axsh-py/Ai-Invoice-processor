@@ -148,6 +148,10 @@ def init_db() -> None:
         for ddl in [
             "ALTER TABLE extracted_data ADD COLUMN corrected_by TEXT",
             "ALTER TABLE extracted_data ADD COLUMN corrected_at TEXT",
+            "ALTER TABLE extracted_data ADD COLUMN vendor_id TEXT",
+            "ALTER TABLE extracted_data ADD COLUMN vendor_confidence REAL",
+            "ALTER TABLE extracted_data ADD COLUMN vendor_category TEXT",
+            "ALTER TABLE invoices ADD COLUMN vendor_id TEXT",
         ]:
             try:
                 conn.execute(ddl)
@@ -178,13 +182,14 @@ def insert_full_invoice(
     with _connect() as conn:
         cur = conn.cursor()
 
+        vendor_id = extracted.get("vendor_id", "UNKNOWN")
         cur.execute(
             """INSERT INTO invoices
                (source_type, processing_status, validation_status, match_status,
-                vat_status, erp_status, erp_invoice_id, confidence, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                vat_status, erp_status, erp_invoice_id, confidence, vendor_id, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (source_type, "COMPLETED", validation_status, match_status,
-             vat_status, erp_status, erp_invoice_id, confidence, now, now),
+             vat_status, erp_status, erp_invoice_id, confidence, vendor_id, now, now),
         )
         invoice_id = cur.lastrowid
 
@@ -219,8 +224,10 @@ def insert_full_invoice(
                 vendor_name, service_provider_id, currency, amount_due, vat_amount,
                 amount_due_with_vat, charge_code, charge_description, invoice_type,
                 invoice_category, shipment_id, route_or_port, confidence,
-                missing_fields, possible_errors, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                missing_fields, possible_errors,
+                vendor_id, vendor_confidence, vendor_category,
+                created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 invoice_id, ai_mode, json.dumps(extracted),
                 extracted.get("invoice_number"),
@@ -240,6 +247,9 @@ def insert_full_invoice(
                 confidence,
                 json.dumps(extracted.get("missing_fields") or []),
                 json.dumps(extracted.get("possible_errors") or []),
+                extracted.get("vendor_id", "UNKNOWN"),
+                float(extracted.get("vendor_confidence") or 0),
+                extracted.get("vendor_category", "unknown"),
                 now,
             ),
         )
