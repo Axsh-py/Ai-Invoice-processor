@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
 from .ocr import extract_text_from_pdf
-from .ai_parser import parse_invoice, parse_invoice_for_vendor
+from .ai_parser import parse_invoice, parse_invoice_for_vendor, smart_refill_missing_fields
 from .vendor_classifier import classify_vendor_full
 from .vendor_registry import get_vendor
 from .matcher import enrich_invoice, match_shipment, match_service_provider, match_charge_code
@@ -73,6 +73,19 @@ def process_invoice(
         db_log(None, STEP_AI_PARSING_COMPLETED, STATUS_OK,
                f"AI parse complete — vendor: {vendor_id} | charge: {extracted.get('charge_code')} "
                f"amount: {extracted.get('amount_due')} conf: {extracted.get('confidence_score')}")
+
+        # ── Smart auto-fill: fill fields the AI missed using regex ────────────
+        # Runs silently before validation so fewer invoices hit Review Queue.
+        refilled = smart_refill_missing_fields(raw_text, extracted, vendor_id=vendor_id)
+        if refilled:
+            for k, v in refilled.items():
+                if v is not None and not extracted.get(k):
+                    extracted[k] = v
+            extracted["_auto_filled_fields"] = list(refilled.keys())
+            still_missing = [f for f in (extracted.get("missing_fields") or []) if not extracted.get(f)]
+            extracted["missing_fields"] = still_missing
+            db_log(None, STEP_ENRICHMENT_COMPLETED, STATUS_OK,
+                   f"Auto-filled {len(refilled)} field(s): {list(refilled.keys())}")
 
         matched_shipment = match_shipment(extracted)
         matched_sp = match_service_provider(extracted.get("vendor_name"), extracted.get("service_provider_id"))

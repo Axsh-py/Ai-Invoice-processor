@@ -280,3 +280,141 @@ def parse_invoice_for_vendor(
     result["vendor_id"] = vendor_id
     result["_parsed_with"] = f"generic_{mode}"
     return result
+
+
+# ── Regex patterns for smart auto-fill ────────────────────────────────────────
+_INV_NO_PATS = [
+    r"invoice\s*(?:no\.?|number|#|num\.?)\s*[:\-]?\s*([\w\-/]{3,30})",
+    r"inv\.?\s*(?:no\.?|#)\s*[:\-]?\s*([\w\-/]{3,20})",
+    r"bill\s*(?:no\.?|number)\s*[:\-]?\s*([\w\-/]{3,20})",
+    r"ref\.?\s*(?:no\.?|#)?\s*[:\-]?\s*([\w\-/]{4,20})",
+]
+_AMOUNT_PATS = [
+    r"total\s*(?:amount|due|payable)\s*[:\-]?\s*(?:AED|USD|EUR|GBP|INR)?\s*([\d,]+\.?\d*)",
+    r"amount\s*(?:due|payable)\s*[:\-]?\s*(?:AED|USD|EUR|GBP|INR)?\s*([\d,]+\.?\d*)",
+    r"grand\s*total\s*[:\-]?\s*(?:AED|USD|EUR|GBP|INR)?\s*([\d,]+\.?\d*)",
+    r"net\s*(?:amount|total)\s*[:\-]?\s*(?:AED|USD|EUR|GBP|INR)?\s*([\d,]+\.?\d*)",
+    r"(?:AED|USD|EUR|GBP|INR)\s+([\d,]+\.\d{2})\b",
+    r"\b([\d,]+\.\d{2})\s*(?:AED|USD|EUR|GBP|INR)\b",
+]
+_VAT_PATS = [
+    r"(?:vat|tax|gst)\s*(?:amount|@\s*\d+%?)?\s*[:\-]?\s*(?:AED|USD|EUR)?\s*([\d,]+\.?\d*)",
+    r"(?:5%|18%)\s*(?:vat|gst|tax)\s*[:\-]?\s*(?:AED|USD|EUR)?\s*([\d,]+\.?\d*)",
+]
+_DATE_PATS = [
+    r"(?:invoice\s*)?date\s*[:\-]?\s*(\d{1,2}[\s\-/](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-/]\d{2,4})",
+    r"(?:invoice\s*)?date\s*[:\-]?\s*(\d{4}[\-/]\d{1,2}[\-/]\d{1,2})",
+    r"(?:invoice\s*)?date\s*[:\-]?\s*(\d{1,2}[\-/]\d{1,2}[\-/]\d{2,4})",
+    r"dated?\s*[:\-]?\s*(\d{1,2}[\s\-/]\w+[\s\-/]\d{2,4})",
+]
+_MBL_PATS = [
+    r"(?:mbl|master\s*b/?l|bill\s*of\s*lading)\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9]{8,20})",
+    r"(?:awb|air\s*waybill)\s*(?:no\.?|#)?\s*[:\-]?\s*(\d[\d\s]{7,14})",
+    r"(?:b/?l|swb)\s*(?:no\.?|#)?\s*[:\-]?\s*([A-Z0-9]{8,20})",
+]
+_CURRENCY_PAT = r"\b(AED|USD|EUR|GBP|INR|SAR|QAR|KWD|BHD|OMR)\b"
+_CONTAINER_PAT = r"\b([A-Z]{4}\d{7})\b"
+_CUST_NO_PATS = [
+    r"(?:customer|client|account|cust\.?)\s*(?:no\.?|number|#|id|code)\s*[:\-]?\s*([\w\-]{4,20})",
+]
+
+
+def smart_refill_missing_fields(
+    raw_text: str,
+    extracted: dict,
+    vendor_id: str = "UNKNOWN",
+) -> dict:
+    """
+    Regex-based auto-fill for fields the AI missed.
+    Returns a dict of only the fields that were empty and now have a value.
+    Runs in the pipeline after AI extraction AND on-demand in Review Queue.
+    """
+    filled: dict = {}
+    t = raw_text or ""
+
+    def _try(pats: list, key: str) -> str:
+        for pat in pats:
+            m = re.search(pat, t, re.IGNORECASE)
+            if m:
+                return m.group(1).strip()
+        return ""
+
+    # Invoice number
+    if not extracted.get("invoice_number"):
+        val = _try(_INV_NO_PATS, "invoice_number")
+        skip = {"no", "date", "ref", "num", "number", "invoice"}
+        if val and val.lower() not in skip and len(val) >= 3:
+            filled["invoice_number"] = val
+
+    # Invoice date
+    if not extracted.get("invoice_date"):
+        val = _try(_DATE_PATS, "invoice_date")
+        if val:
+            filled["invoice_date"] = val
+
+    # Currency
+    if not extracted.get("currency"):
+        m = re.search(_CURRENCY_PAT, t)
+        if m:
+            filled["currency"] = m.group(1).upper()
+
+    # Amount due (only if zero or missing)
+    cur_amt = float(extracted.get("amount_due") or 0)
+    if cur_amt == 0:
+        for pat in _AMOUNT_PATS:
+            m = re.search(pat, t, re.IGNORECASE)
+            if m:
+                try:
+                    amt = float(m.group(1).replace(",", ""))
+                    if amt > 0:
+                        filled["amount_due"] = round(amt, 2)
+                        break
+                except Exception:
+                    pass
+
+    # VAT amount
+    if not extracted.get("vat_amount") or float(extracted.get("vat_amount") or 0) == 0:
+        val = _try(_VAT_PATS, "vat_amount")
+        if val:
+            try:
+                filled["vat_amount"] = round(float(val.replace(",", "")), 2)
+            except Exception:
+                pass
+
+    # MBL / AWB
+    if not extracted.get("mbl_number") and not extracted.get("awb_number"):
+        val = _try(_MBL_PATS, "mbl_number")
+        if val:
+            filled["mbl_number"] = val.upper().replace(" ", "")
+
+    # Container number
+    if not extracted.get("container_number"):
+        m = re.search(_CONTAINER_PAT, t)
+        if m:
+            filled["container_number"] = m.group(1)
+
+    # Customer number
+    if not extracted.get("customer_number"):
+        val = _try(_CUST_NO_PATS, "customer_number")
+        if val:
+            filled["customer_number"] = val
+
+    # Vendor name from registry when AI left it blank
+    if not extracted.get("vendor_name") and vendor_id and vendor_id != "UNKNOWN":
+        try:
+            from .vendor_registry import get_vendor
+            vinfo = get_vendor(vendor_id)
+            if vinfo and vinfo.get("name"):
+                filled["vendor_name"] = vinfo["name"]
+        except Exception:
+            pass
+
+    # Recalculate total if we filled both amount and vat
+    if "amount_due" in filled or "vat_amount" in filled:
+        base = filled.get("amount_due") or float(extracted.get("amount_due") or 0)
+        vat  = filled.get("vat_amount") or float(extracted.get("vat_amount") or 0)
+        cur_total = float(extracted.get("amount_due_with_vat") or 0)
+        if base > 0 and cur_total == 0:
+            filled["amount_due_with_vat"] = round(base + vat, 2)
+
+    return filled
