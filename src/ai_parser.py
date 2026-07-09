@@ -36,7 +36,116 @@ def _load_charge_master() -> dict:
     }
 
 
-def mock_parse_invoice(raw_text: str) -> dict:
+def _vendor_overrides(t: str, vendor_id: str) -> dict:
+    """
+    Vendor-specific regex extraction — runs after generic mock_parse_invoice and
+    fills / corrects fields that the generic parser misses or gets wrong.
+    Returns only keys whose values are non-None.
+    """
+    out: dict = {}
+
+    def _m1(pat: str, flags: int = re.IGNORECASE) -> Optional[str]:
+        r = re.search(pat, t, flags)
+        return r.group(1).strip() if r else None
+
+    if vendor_id in ("HAPAG_LLOYD", "HAPAG_LLOYD_INDIA"):
+        # 10-digit invoice number (distinct from 15-digit HLCU BL)
+        out["invoice_number"] = _m1(r"(?<!\d)(\d{10})(?!\d)")
+        # HLCU BL — 2-3 uppercase letters after HLCU then 6+ digits
+        out["mbl_number"]      = _m1(r"\b(HLCU[A-Z]{2,3}\d{6,}[A-Z]?)\b")
+        out["bl_number"]       = out["mbl_number"]
+        # 8-digit customer number (starts with 5 or 9 for Hapag accounts)
+        out["customer_number"] = _m1(r"\b([59]\d{7})\b")
+        # "FROM [City/Port] TO [City/Port]" route
+        _rt = re.search(r"\bFROM\s+([A-Z][A-Za-z ,\(\)]+?)\s+TO\s+([A-Z][A-Za-z ,\(\)]+?)(?=\s*\n|\s{2,}|$)",
+                        t, re.IGNORECASE)
+        if _rt:
+            out["origin_port"]      = _rt.group(1).strip()
+            out["destination_port"] = _rt.group(2).strip()
+        # Vessel: "VESSEL NAME" before a voyage number block
+        out["vessel_name"]  = _m1(r"[Vv]essel\s*[:\-]\s*(.+?)(?:\n|$)")
+        out["voyage_number"] = _m1(r"[Vv]oyage\s*(?:No\.?|Code)?\s*[:\-]\s*([A-Z0-9]{4,12})")
+
+    elif vendor_id == "MSC":
+        out["invoice_number"]  = _m1(r"\b(AE[JK][A-Z]+PM\d{9,})\b")
+        out["bl_number"]       = _m1(r"\b(MSCU\d{7,}|MEDU\d{7,})\b")
+        out["mbl_number"]      = out["bl_number"]
+        out["customer_number"] = _m1(r"\b(1000\d{6,})\b")
+        out["container_number"]= _m1(r"\b(MSCU\d{7}|MEDU\d{7})\b")
+
+    elif vendor_id == "CMA_CGM":
+        out["invoice_number"]  = _m1(r"\b(AEIM\d{7,})\b")
+        out["container_number"]= _m1(r"\b(CMAU\d{7}|CMAL\d{7}|CGMU\d{7})\b")
+        out["mbl_number"]      = out["container_number"]
+        out["bl_number"]       = out["container_number"]
+
+    elif vendor_id == "MAERSK":
+        out["mbl_number"]      = _m1(r"\b(MAEU\d{7,}|MAES\d{7,}|MRKU\d{7,}|MSKU\d{7,})\b")
+        out["bl_number"]       = out["mbl_number"]
+        out["container_number"]= _m1(r"\b(MRKU\d{7}|MSKU\d{7})\b")
+        # Maersk invoice numbers often alphanumeric, 8-12 chars
+        out["invoice_number"]  = _m1(r"[Ii]nvoice\s*(?:No\.?|Number|#)\s*[:\-]?\s*([A-Z0-9\-]{6,15})")
+
+    elif vendor_id == "EMIRATES_SKYCARGO":
+        awb = _m1(r"\b(176[\s\-]\d{8})\b")
+        if awb:
+            out["awb_number"] = awb
+            out["mbl_number"] = awb
+        out["customer_number"] = "WALKIAEDXB"
+
+    elif vendor_id == "CALOGI":
+        out["invoice_number"]  = _m1(r"\b(DXBCAIN\d{8,})\b")
+        out["customer_number"] = "DCL146"
+        awb = _m1(r"\b(176[-\s]\d{8})\b")
+        if awb:
+            out["mbl_number"] = awb.replace(" ", "-")
+
+    elif vendor_id == "BENGAL_AIRLIFT":
+        out["invoice_number"] = _m1(r"\b(DRN\d{8,}[A-Z])\b")
+        out["currency"]       = "USD"
+        # MBL from any known carrier format
+        out["mbl_number"]     = _m1(r"\b(MAEU\d{7,}|MSCU\d{7,}|HLCU[A-Z]{2,}\d{6,}|COSU\d{7,})\b")
+
+    elif vendor_id == "GREEN_WAY_CARGO":
+        out["invoice_number"] = _m1(r"\b(INV-0\d{5,})\b")
+        # BOE number embedded in description: "BOE No: 102-XXXXXXXX-XX"
+        out["invoice_number"] = out.get("invoice_number") or _m1(r"\b(INV[\-\s]?\d{4,})\b")
+
+    elif vendor_id == "RAVIAN_SHIPPING":
+        out["invoice_number"] = _m1(r"\b(JI-\d+/\d{2,4})\b")
+        out["mbl_number"]     = _m1(r"\b(MSCU\d{7,}|HLCU[A-Z]{2,}\d{6,}|COSU\d{7,}|MAEU\d{7,})\b")
+        out["bl_number"]      = out["mbl_number"]
+
+    elif vendor_id == "ADSO_LLC":
+        out["invoice_number"] = _m1(r"\b(26\d{5})\b")  # 7-digit 26XXXXX format
+        out["mbl_number"]     = _m1(r"\b([A-Z]{4}\d{9,}[A-Z]?)\b")
+
+    elif vendor_id == "SEACOAST_LOGISTICS":
+        out["invoice_number"] = _m1(r"\b(\d{9}-\d{2}-\d)\b")
+        awb = _m1(r"\b(176[-\s]\d{8})\b")
+        if awb:
+            out["mbl_number"] = awb
+
+    elif vendor_id == "UAE_CUSTOMS_BOE":
+        out["invoice_number"] = _m1(r"\b((102|101|303)-\d{8}-\d{2})\b")
+
+    elif vendor_id == "DUBAI_CUSTOMS_EREVENUE":
+        out["customer_number"] = "AE-1151728"
+
+    elif vendor_id == "DP_WORLD":
+        out["invoice_number"] = _m1(r"[Rr]eceipt\s*[Nn]o\.?\s*[:\-]?\s*([A-Z0-9\-/]+)")
+
+    elif vendor_id == "ABU_DHABI_PORTS":
+        out["invoice_number"] = _m1(r"[Rr]eceipt\s*(?:[Vv]oucher\s*)?[Nn]o\.?\s*[:\-]?\s*([A-Z0-9\-/]+)")
+
+    elif vendor_id == "FIRST_FLIGHT_COURIERS":
+        out["customer_number"] = "16082"
+        out["invoice_number"]  = _m1(r"\b(\d{6})\b")
+
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def mock_parse_invoice(raw_text: str, vendor_id: str = "UNKNOWN") -> dict:
     """Deterministic regex-based parser — works without any API key."""
     charge_master = _load_charge_master()
     charge_code = _find(r"Charge\s*Code\s*[:\-]\s*([A-Z0-9]+)", raw_text, "")
@@ -213,6 +322,34 @@ def mock_parse_invoice(raw_text: str) -> dict:
         0.72 if amount > 0 and charge_code else 0.45
     )
 
+    # ── Apply vendor-specific overrides for fields generic parser missed ────────
+    _ov = _vendor_overrides(raw_text, vendor_id)
+    if _ov.get("invoice_number") and not invoice_number:
+        invoice_number = _ov["invoice_number"]
+    if _ov.get("mbl_number") and not mbl_number:
+        mbl_number = _ov["mbl_number"]
+    if _ov.get("bl_number") and not mbl_number:
+        mbl_number = _ov["bl_number"]
+    if _ov.get("awb_number") and not mbl_number:
+        mbl_number = _ov["awb_number"]
+    if _ov.get("customer_number") and not customer_number:
+        customer_number = _ov["customer_number"]
+    if _ov.get("container_number") and not container_number:
+        container_number = _ov["container_number"]
+    if _ov.get("vessel_name") and not vessel_name:
+        vessel_name = _ov["vessel_name"]
+    if _ov.get("voyage_number") and not voyage_number:
+        voyage_number = _ov["voyage_number"]
+    if _ov.get("origin_port") and not pol:
+        pol = _ov["origin_port"]
+    if _ov.get("destination_port") and not pod:
+        pod = _ov["destination_port"]
+    if _ov.get("currency") and not currency:
+        currency = _ov["currency"]
+    # route rebuild after overrides
+    if not route and pol and pod:
+        route = f"{pol.strip()} to {pod.strip()}"
+
     return {
         "vendor_name":         vendor_name or None,
         "invoice_number":      invoice_number or None,
@@ -221,6 +358,7 @@ def mock_parse_invoice(raw_text: str) -> dict:
         "customer_number":     customer_number or None,
         "mbl_number":          mbl_number or None,
         "bl_number":           mbl_number or None,
+        "awb_number":          _ov.get("awb_number") or None,
         "shipment_id":         shipment_id or None,
         "vessel_name":         vessel_name or None,
         "voyage_number":       voyage_number or None,
@@ -293,12 +431,12 @@ def openai_parse_invoice(raw_text: str) -> dict:
         return fallback
 
 
-def parse_invoice(raw_text: str, mode: str = "mock") -> dict:
+def parse_invoice(raw_text: str, mode: str = "mock", vendor_id: str = "UNKNOWN") -> dict:
     """Route to OpenAI or mock parser. Always returns a valid dict."""
     if mode == "openai" and os.environ.get("OPENAI_API_KEY"):
         result = openai_parse_invoice(raw_text)
     else:
-        result = mock_parse_invoice(raw_text)
+        result = mock_parse_invoice(raw_text, vendor_id=vendor_id)
 
     try:
         validated = validate_extracted_json(result)
@@ -339,7 +477,7 @@ def openai_parse_invoice_for_vendor(raw_text: str, vendor_id: str) -> dict:
         result["_parsed_with"] = "vendor_openai"
         return result
     except Exception as exc:
-        fallback = mock_parse_invoice(raw_text)
+        fallback = mock_parse_invoice(raw_text, vendor_id=vendor_id)
         fallback["vendor_id"] = vendor_id
         fallback["ai_fallback_reason"] = f"vendor OpenAI call failed: {exc}"
         fallback["_parsed_with"] = "mock_fallback"
@@ -359,8 +497,8 @@ def parse_invoice_for_vendor(
     if vendor_id and vendor_id != "UNKNOWN" and mode == "openai" and os.environ.get("OPENAI_API_KEY"):
         return openai_parse_invoice_for_vendor(raw_text, vendor_id)
 
-    # Generic parse (mock or openai without vendor context)
-    result = parse_invoice(raw_text, mode=mode)
+    # Generic parse (mock or openai without vendor context) — pass vendor_id so mock uses specific patterns
+    result = parse_invoice(raw_text, mode=mode, vendor_id=vendor_id)
     result["vendor_id"] = vendor_id
     result["_parsed_with"] = f"generic_{mode}"
     return result
@@ -530,6 +668,79 @@ def smart_refill_missing_fields(
                 filled["vendor_name"] = vinfo["name"]
         except Exception:
             pass
+
+    # ── Vendor-specific smart-refill overrides ────────────────────────────────
+    def _needfill(key: str) -> bool:
+        return not extracted.get(key) and key not in filled
+
+    if vendor_id in ("HAPAG_LLOYD", "HAPAG_LLOYD_INDIA"):
+        if _needfill("mbl_number"):
+            _m = re.search(r"\b(HLCU[A-Z]{2,3}\d{6,}[A-Z]?)\b", t)
+            if _m: filled["mbl_number"] = _m.group(1)
+        if _needfill("bl_number"):
+            filled["bl_number"] = filled.get("mbl_number") or extracted.get("mbl_number")
+        if _needfill("customer_number"):
+            _m = re.search(r"\b([59]\d{7})\b", t)
+            if _m: filled["customer_number"] = _m.group(1)
+        if _needfill("origin_port") or _needfill("destination_port"):
+            _rt = re.search(r"\bFROM\s+([A-Z][A-Za-z ,]+?)\s+TO\s+([A-Z][A-Za-z ,]+?)(?=\s*\n|\s{2,}|$)", t, re.IGNORECASE)
+            if _rt:
+                if _needfill("origin_port"):      filled["origin_port"]      = _rt.group(1).strip()
+                if _needfill("destination_port"): filled["destination_port"] = _rt.group(2).strip()
+
+    elif vendor_id == "MSC":
+        if _needfill("invoice_number"):
+            _m = re.search(r"\b(AE[JK][A-Z]+PM\d{9,})\b", t)
+            if _m: filled["invoice_number"] = _m.group(1)
+        if _needfill("mbl_number"):
+            _m = re.search(r"\b(MSCU\d{7,}|MEDU\d{7,})\b", t)
+            if _m: filled["mbl_number"] = _m.group(1); filled["bl_number"] = _m.group(1)
+        if _needfill("customer_number"):
+            _m = re.search(r"\b(1000\d{6,})\b", t)
+            if _m: filled["customer_number"] = _m.group(1)
+
+    elif vendor_id == "CMA_CGM":
+        if _needfill("invoice_number"):
+            _m = re.search(r"\b(AEIM\d{7,})\b", t)
+            if _m: filled["invoice_number"] = _m.group(1)
+        if _needfill("container_number"):
+            _m = re.search(r"\b(CMAU\d{7}|CMAL\d{7}|CGMU\d{7})\b", t)
+            if _m: filled["container_number"] = _m.group(1)
+
+    elif vendor_id == "MAERSK":
+        if _needfill("mbl_number"):
+            _m = re.search(r"\b(MAEU\d{7,}|MAES\d{7,}|MRKU\d{7,}|MSKU\d{7,})\b", t)
+            if _m: filled["mbl_number"] = _m.group(1); filled["bl_number"] = _m.group(1)
+        if _needfill("container_number"):
+            _m = re.search(r"\b(MRKU\d{7}|MSKU\d{7})\b", t)
+            if _m: filled["container_number"] = _m.group(1)
+
+    elif vendor_id == "EMIRATES_SKYCARGO":
+        if _needfill("awb_number"):
+            _m = re.search(r"\b(176[\s\-]\d{8})\b", t)
+            if _m:
+                filled["awb_number"] = _m.group(1)
+                if _needfill("mbl_number"): filled["mbl_number"] = _m.group(1)
+
+    elif vendor_id == "CALOGI":
+        if _needfill("invoice_number"):
+            _m = re.search(r"\b(DXBCAIN\d{8,})\b", t)
+            if _m: filled["invoice_number"] = _m.group(1)
+        if _needfill("mbl_number"):
+            _m = re.search(r"\b(176[-\s]\d{8})\b", t)
+            if _m: filled["mbl_number"] = _m.group(1).replace(" ", "-")
+
+    elif vendor_id == "BENGAL_AIRLIFT":
+        if _needfill("invoice_number"):
+            _m = re.search(r"\b(DRN\d{8,}[A-Z])\b", t)
+            if _m: filled["invoice_number"] = _m.group(1)
+        if _needfill("currency"):
+            filled["currency"] = "USD"
+
+    elif vendor_id == "UAE_CUSTOMS_BOE":
+        if _needfill("invoice_number"):
+            _m = re.search(r"\b((102|101|303)-\d{8}-\d{2})\b", t)
+            if _m: filled["invoice_number"] = _m.group(1)
 
     # Recalculate total if we filled both amount and vat
     if "amount_due" in filled or "vat_amount" in filled:

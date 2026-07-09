@@ -59,30 +59,33 @@ VENDOR_REGISTRY: Dict[str, Dict[str, Any]] = {
         },
         "extraction_prompt_hints": """VENDOR: Hapag-Lloyd Middle East Shipping LLC
 
-FORMAT RULES:
-- Invoice No: 10-digit numeric (e.g. 2180010997)
-- Customer No: 8-digit numeric (e.g. 53584705)
-- SWB-NO / B/L No: starts with HLCU + port code + digits (e.g. HLCUMTR251145600)
-- Shipment block: vessel name, two voyage numbers, sailing date, arrival date
-- Route: "FROM [city] TO [city]"
-- Charge table: [description]  [amount] AED  [qty] [unit]  [total] AED
-- TOTAL at bottom
-- Payment portal: ODEX
+DOCUMENT LAYOUT:
+  Header row:  Invoice No (10-digit) | Invoice Date | Due Date | Customer No (8-digit)
+  SWB-NO / BL line: HLCU + 2-3 port letters + digits (e.g. HLCUMTR251145600)
+  Route line:  FROM [Port/City] TO [Port/City]
+  Shipment:    Vessel name | Voyage 1 | Voyage 2 | Sailing Date | Arrival Date
+  Charge table: Description | Amount AED | Qty | Unit | Total AED
+  Footer:      TOTAL | VAT (if applicable)
+  Payment:     ODEX portal reference
 
-EXTRACT:
-- invoice_number: the 10-digit number (NOT the HLCU number)
-- customer_number: the 8-digit customer number
-- swb_number / mbl_number: the HLCU... number (shipment reference)
-- vessel_name, voyage_numbers, sailing_date, arrival_date
-- origin_port, destination_port (from FROM/TO line)
-- line_items: each charge row → {description, amount_aed, qty, unit}
-- total_aed: TOTAL line
-- vat_amount: if shown
+EXTRACT THESE FIELDS:
+  invoice_number:      the 10-digit numeric value (e.g. 2180010997) — NOT the HLCU number
+  customer_number:     the 8-digit numeric value (e.g. 53584705) — usually starting with 5
+  mbl_number:          HLCU + port-code + digits (e.g. HLCUMTR251145600) — this is SWB/BL number
+  vessel_name:         from the shipment block
+  voyage_number:       first voyage code (outbound)
+  origin_port:         FROM [location] (first port in FROM ... TO ... line)
+  destination_port:    TO [location] (second port in FROM ... TO ... line)
+  line_items:          each charge row → {description, amount_aed, qty, unit, total_aed}
+  amount_due:          TOTAL line (before VAT if shown separately)
+  vat_amount:          VAT line (5% if shown)
+  currency:            AED (or INR for India branch invoices — check for CGST/SGST)
 
-OTM CHARGE CODE MAP:
-DEST.DOCUMENT FEE → DFRT
-EQUIPM.MAINTEN.FEE → DET
-DETENTION → DET  |  DEMURRAGE → DEM  |  OCEAN FREIGHT → OFR""",
+OTM CHARGE CODES:
+  DEST.DOCUMENT FEE / DESTINATION DOCUMENT FEE → DFRT
+  EQUIPM.MAINTEN.FEE / EQUIPMENT MAINTENANCE FEE → DET
+  DETENTION → DET  |  DEMURRAGE → DEM
+  OCEAN FREIGHT → OFR  |  LSS → LSS  |  EBS → EBS  |  PSS → PSS  |  BAF → BAF  |  THC → THC""",
     },
 
     "MSC": {
@@ -294,16 +297,35 @@ OTM CHARGE CODES:
         },
         "extraction_prompt_hints": """VENDOR: Maersk Line
 
-FORMAT RULES:
-- B/L starts with MAEU, MAES, or MRKU + digits
-- Container numbers: MRKU, MSKU prefixes
-- Standard ocean freight invoice format
-- Has BAF, THC, LSS, EBS surcharges
+DOCUMENT LAYOUT (Standard Ocean Freight Invoice):
+  Header:   Invoice No | Invoice Date | Due Date | Customer Ref
+  Bill To:  Customer name & address
+  Shipment: B/L No | Vessel | Voyage | POL | POD | Container No | Size/Type
+  Charge table: Description | Qty | Unit | Rate | Currency | Amount | VAT% | VAT | Total AED
+  Footer:   Subtotal | VAT Amount | Grand Total
 
-EXTRACT: invoice_number, bl_number, container_number, vessel, pol, pod,
-line_items with {description, amount, currency}, total_amount
+EXTRACT THESE FIELDS:
+  invoice_number:      alphanumeric, usually shown as "Invoice No:" in header
+  bl_number:           MAEU, MAES, or MRKU + 7+ digits (e.g. MAEU123456789)
+  container_number:    MRKU or MSKU + 7 digits
+  vessel_name:         vessel name from shipment block
+  voyage_number:       voyage code from shipment block
+  origin_port:         POL field
+  destination_port:    POD field
+  line_items:          each row → {description, qty, unit, rate, currency, amount, vat_pct, vat_amount, total}
+  amount_due:          subtotal before VAT
+  vat_amount:          total VAT
+  amount_due_with_vat: grand total
+  currency:            AED (or USD for USD invoices)
 
-OTM: Ocean Freight → OFR  |  Detention → DET  |  Demurrage → DEM""",
+OTM CHARGE CODES:
+  Ocean Freight / Basic Freight → OFR
+  BAF (Bunker Adjustment Factor) → BAF
+  THC (Terminal Handling Charge) → THC
+  LSS (Low Sulphur Surcharge) → LSS
+  EBS (Emergency Bunker Surcharge) → EBS
+  PSS (Peak Season Surcharge) → PSS
+  Detention → DET  |  Demurrage → DEM""",
     },
 
     # ── AIR FREIGHT ──────────────────────────────────────────────────────────────
@@ -314,6 +336,7 @@ OTM: Ocean Freight → OFR  |  Detention → DET  |  Demurrage → DEM""",
         "short_name": "Emirates SkyCargo",
         "category": "air",
         "otm_sp_alias": "EMIRATESSKY",
+        "otm_sp_id": "EKS.300001123456700",
         "currency": "AED",
         "identification": {
             "patterns": [
