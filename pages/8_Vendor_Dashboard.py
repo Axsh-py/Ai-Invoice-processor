@@ -290,7 +290,7 @@ for cat in CATEGORIES:
                                 hdr = payload.get("otm_payload", {}).get("invoice_header", {})
                                 st.markdown("**Invoice Header**")
                                 st.json({
-                                    "invoice_id":       hdr.get("invoice_id") or payload.get("otm_payload", {}).get("erp_invoice_id"),
+                                    "invoice_id":       hdr.get("otm_document_id") or payload.get("otm_payload", {}).get("otm_document_id"),
                                     "invoice_number":   hdr.get("invoice_number"),
                                     "service_provider": hdr.get("service_provider_alias"),
                                     "currency":         hdr.get("currency"),

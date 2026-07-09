@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     erp_status TEXT,
     erp_invoice_id TEXT,
     confidence REAL,
+    vendor_id TEXT,
     created_at TEXT,
     updated_at TEXT
 );
@@ -92,7 +93,7 @@ CREATE TABLE IF NOT EXISTS validation_results (
 CREATE TABLE IF NOT EXISTS otm_drafts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     invoice_id INTEGER NOT NULL,
-    otm_invoice_id TEXT UNIQUE,
+    otm_invoice_id TEXT,
     otm_payload_json TEXT,
     draft_status TEXT DEFAULT 'PENDING',
     approved_by TEXT,
@@ -176,7 +177,12 @@ def insert_full_invoice(
     match_status = validation.get("match_status", "UNKNOWN")
     vat_status = validation.get("vat_status", "VAT_NOT_FOUND")
     erp_status = otm_payload.get("erp_status", "WAITING_FOR_HUMAN_REVIEW")
-    erp_invoice_id = otm_payload.get("erp_invoice_id", "")
+    # otm_document_id is the canonical OTM reference (TW/DWCLLC/DXB.[DOC_NO])
+    erp_invoice_id = (
+        otm_payload.get("otm_document_id")
+        or otm_payload.get("erp_invoice_id")
+        or None
+    )
     confidence = float(extracted.get("confidence_score") or extracted.get("confidence") or 0.0)
 
     with _connect() as conn:

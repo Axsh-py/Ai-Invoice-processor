@@ -102,7 +102,7 @@ def process_invoice(
 
         if otm_payload.get("erp_status") == "ERP_DRAFT_CREATED":
             db_log(invoice_id, STEP_OTM_DRAFT_CREATED, STATUS_OK,
-                   f"OTM draft created: {otm_payload.get('erp_invoice_id')}")
+                   f"OTM draft created: {otm_payload.get('otm_document_id')}")
         else:
             db_log(invoice_id, STEP_REVIEW_REQUIRED, STATUS_WARN,
                    "Sent to human review — " + "; ".join(

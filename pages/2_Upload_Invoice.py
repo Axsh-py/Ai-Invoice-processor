@@ -54,7 +54,7 @@ with st.sidebar:
 
 def _show_result(invoice_id, raw_text, extracted, validation, otm_payload):
     v_status  = validation.get("validation_status", "UNKNOWN")
-    erp_id    = otm_payload.get("erp_invoice_id", "")
+    erp_id    = otm_payload.get("otm_document_id", "")
     erp_status = otm_payload.get("erp_status", "")
 
     result_banner(v_status, invoice_id,
@@ -99,8 +99,8 @@ def _show_result(invoice_id, raw_text, extracted, validation, otm_payload):
     with c3:
         header = otm_payload.get("invoice_header", {})
         otm_fields = {
-            "ERP Invoice ID":    otm_payload.get("erp_invoice_id"),
-            "Service Provider":  header.get("service_provider_id"),
+            "OTM Document ID":   otm_payload.get("otm_document_id"),
+            "Service Provider":  header.get("service_provider_gid"),
             "Consolidation":     header.get("financial_consolidation_type"),
             "Bill Rule":         header.get("invoice_bill_rule_id"),
             "Route":             header.get("route"),
