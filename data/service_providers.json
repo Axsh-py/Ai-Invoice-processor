@@ -271,5 +271,44 @@
     "charge_codes": ["WHSE"],
     "name_keywords": ["gulf bridge", "gulfbridge"],
     "contact_email": "finance@gulfbridge.ae"
+  },
+  {
+    "service_provider_id": "SCL.300001567890120",
+    "alias": "SEACOAST",
+    "name": "Seacoast Logistics",
+    "country": "UAE",
+    "currency": "AED",
+    "tax_id": "TRN100567890120001",
+    "payment_terms": "NET30",
+    "approved": true,
+    "charge_codes": ["AFRT", "TRANS", "THC"],
+    "name_keywords": ["seacoast logistics", "seacoast"],
+    "contact_email": "accounts@seacoastlogistics.ae"
+  },
+  {
+    "service_provider_id": "DCE.300001000000002",
+    "alias": "DUBCUSTOMS_EREV",
+    "name": "Dubai Customs E-Revenue",
+    "country": "UAE",
+    "currency": "AED",
+    "tax_id": "GOV-DUBAI-CUSTOMS-EREV",
+    "payment_terms": "Immediate",
+    "approved": true,
+    "charge_codes": ["CUST"],
+    "name_keywords": ["dubai customs", "e-revenue", "ae-1151728", "exit entry seal"],
+    "contact_email": "info@dubaitrade.ae"
+  },
+  {
+    "service_provider_id": "ADP.300001098765430",
+    "alias": "ABUDHABI_PORTS",
+    "name": "Abu Dhabi Ports / Gulftainer",
+    "country": "UAE",
+    "currency": "AED",
+    "tax_id": "TRN100098765430001",
+    "payment_terms": "Immediate",
+    "approved": true,
+    "charge_codes": ["DEM", "THC", "TRANS"],
+    "name_keywords": ["abu dhabi ports", "gulftainer", "adp"],
+    "contact_email": "customerservice@adports.ae"
   }
 ]

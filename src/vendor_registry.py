@@ -385,6 +385,7 @@ EXTRACT:
         "short_name": "CALOGI",
         "category": "air",
         "otm_sp_alias": "CALOGI",
+        "otm_sp_id": "CAL.300001284567890",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -443,6 +444,7 @@ AWB/CBV Issue/Amendment → AFRT  |  DN Amendment → AFRT""",
         "short_name": "Bengal Airlift",
         "category": "air",
         "otm_sp_alias": "BENGALAIRLIFT",
+        "otm_sp_id": "BAL.300001006633000",
         "currency": "USD",
         "identification": {
             "patterns": [
@@ -491,6 +493,7 @@ EXTRACT:
         "short_name": "Green Way Cargo",
         "category": "logistics",
         "otm_sp_alias": "GREENWAYCARGO",
+        "otm_sp_id": "GWC.300001789012340",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -537,6 +540,7 @@ EXTRACT:
         "short_name": "Ravian Shipping",
         "category": "logistics",
         "otm_sp_alias": "RAVIANSHIPPING",
+        "otm_sp_id": "RSL.300001890123450",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -582,6 +586,7 @@ EXTRACT:
         "short_name": "ADSO LLC",
         "category": "logistics",
         "otm_sp_alias": "ADSO",
+        "otm_sp_id": "ADS.300001901234560",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -625,6 +630,7 @@ EXTRACT:
         "short_name": "Seacoast Logistics",
         "category": "logistics",
         "otm_sp_alias": "SEACOAST",
+        "otm_sp_id": "SCL.300001567890120",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -668,6 +674,7 @@ EXTRACT:
         "short_name": "UAE Customs BOE",
         "category": "customs",
         "otm_sp_alias": "UAECUSTOMS",
+        "otm_sp_id": "UAE.300001000000001",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -712,6 +719,7 @@ EXTRACT:
         "short_name": "Dubai Customs E-Rev",
         "category": "customs",
         "otm_sp_alias": "DUBCUSTOMS_EREV",
+        "otm_sp_id": "DCE.300001000000002",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -742,6 +750,7 @@ OTM: charge_code = CUST""",
         "short_name": "DP World",
         "category": "port",
         "otm_sp_alias": "DPWORLD",
+        "otm_sp_id": "DPW.300001012345678",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -779,6 +788,7 @@ EXTRACT:
         "short_name": "Abu Dhabi Ports",
         "category": "port",
         "otm_sp_alias": "ABUDHABI_PORTS",
+        "otm_sp_id": "ADP.300001098765430",
         "currency": "AED",
         "identification": {
             "patterns": [
@@ -804,6 +814,7 @@ OTM: charge_code = DEM""",
         "short_name": "First Flight",
         "category": "courier",
         "otm_sp_alias": "FIRSTFLIGHT",
+        "otm_sp_id": "FFC.300001234560001",
         "currency": "AED",
         "identification": {
             "patterns": [

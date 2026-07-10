@@ -41,8 +41,15 @@ def process_invoice(
                f"OCR complete — method={ocr_method} | {len(raw_text)} chars extracted")
 
         # ── Vendor classification ──────────────────────────────────────────────
+        _openai_client = None
+        if ai_mode == "openai" and os.environ.get("OPENAI_API_KEY"):
+            try:
+                from openai import OpenAI
+                _openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+            except Exception:
+                pass
         vendor_id, vendor_confidence, vendor_method = classify_vendor_full(
-            raw_text, ai_mode=ai_mode
+            raw_text, ai_mode=ai_mode, openai_client=_openai_client
         )
         vendor_info = get_vendor(vendor_id) or {}
         db_log(None, STEP_AI_PARSING_STARTED, STATUS_OK,

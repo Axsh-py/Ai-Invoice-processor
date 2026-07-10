@@ -28,7 +28,34 @@ with col1:
         st.caption(f"Key: sk-...{oai_key[-6:]}")
     else:
         st.warning("OpenAI API Key — Not Set (mock mode active)")
-        st.caption("Set OPENAI_API_KEY in .env to enable real AI parsing.")
+        st.caption("Streamlit Cloud: add `OPENAI_API_KEY = 'sk-...'` in App Settings → Secrets.")
+
+# ── Live AI connection test ────────────────────────────────────────────────────
+st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+oai_key = os.getenv("OPENAI_API_KEY", "")
+if oai_key and len(oai_key) > 10:
+    if st.button("🔌 Test AI Connection (Live OpenAI Call)", type="primary", use_container_width=False):
+        with st.spinner("Calling OpenAI gpt-4o-mini..."):
+            try:
+                from openai import OpenAI
+                _client = OpenAI(api_key=oai_key)
+                _resp = _client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You are an invoice assistant. Reply with a single JSON object."},
+                        {"role": "user", "content": 'Extract: {"status": "ok", "message": "AI is working"}'},
+                    ],
+                    temperature=0,
+                    max_tokens=60,
+                    response_format={"type": "json_object"},
+                )
+                _content = _resp.choices[0].message.content
+                _parsed = json.loads(_content)
+                st.success(f"✅ OpenAI connected! Model: gpt-4o-mini | Response: {_parsed}")
+                st.caption(f"Tokens used — prompt: {_resp.usage.prompt_tokens}, completion: {_resp.usage.completion_tokens}")
+            except Exception as _e:
+                st.error(f"❌ OpenAI call failed: {_e}")
+                st.caption("Check your API key is valid and has credits. Key shown above.")
 
 with col2:
     from src.ocr import tesseract_available
@@ -55,7 +82,7 @@ try:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     tables = ["invoices", "invoice_files", "ocr_results", "extracted_data",
-              "validation_results", "otm_drafts", "processing_logs"]
+              "validation_results", "otm_drafts", "processing_logs", "invoice_payloads"]
     db_stats = {}
     for tbl in tables:
         try:

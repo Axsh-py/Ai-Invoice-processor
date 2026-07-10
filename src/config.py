@@ -1,4 +1,24 @@
+import os
 from pathlib import Path
+
+
+def _load_streamlit_secrets() -> None:
+    """
+    On Streamlit Cloud, secrets live in st.secrets — NOT in os.environ or .env.
+    This runs once at import time and injects all secrets into os.environ so every
+    existing os.environ.get() call works without any other code changes.
+    Silently skips if not running under Streamlit or no secrets configured.
+    """
+    try:
+        import streamlit as st
+        for key, value in st.secrets.items():
+            if isinstance(value, str) and key not in os.environ:
+                os.environ[key] = value
+    except Exception:
+        pass
+
+
+_load_streamlit_secrets()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"

@@ -30,10 +30,15 @@ with st.sidebar:
   </div>
 </div>""", unsafe_allow_html=True)
 
+    _has_key = bool(os.environ.get("OPENAI_API_KEY"))
+    _default_idx = 1 if _has_key else 0
     ai_mode = st.selectbox(
         "AI Parser Mode", ["mock", "openai"],
+        index=_default_idx,
         help="'mock' uses fast regex (no API key needed). 'openai' uses GPT-4o-mini for higher accuracy."
     )
+    if ai_mode == "openai" and not _has_key:
+        st.warning("OpenAI API key not found. Add it to Streamlit Cloud Secrets (Settings → Secrets). Falling back to mock.", icon="⚠️")
 
     st.divider()
     from src.ocr import tesseract_available

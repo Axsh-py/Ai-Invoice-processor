@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 import re
@@ -14,7 +13,12 @@ from src.database import (
     update_otm_draft_status, save_manual_corrections,
 )
 from src.theme import apply, page_header, section_label, status_badge, field_card
-from src.ai_parser import smart_refill_missing_fields
+try:
+    from src.ai_parser import smart_refill_missing_fields
+except ImportError:
+    # Fallback if Streamlit has cached an older version of ai_parser — restart Streamlit to get full function
+    def smart_refill_missing_fields(raw_text, extracted, vendor_id="UNKNOWN"):  # type: ignore[misc]
+        return {}
 
 st.set_page_config(page_title="Review Queue — OTM AI", page_icon="🔍", layout="wide")
 apply()
@@ -105,7 +109,9 @@ vs = selected.get("validation_status") or "UNKNOWN"
 accent = "#7C3AED" if selected.get("is_duplicate") else "#DC2626" if "FAIL" in vs else "#D97706"
 
 st.markdown(f"""
-<div class="ri" style="border-left-color:{accent}">
+<div style="background:#FFFFFF;border:1px solid #E5E7EB;border-left:4px solid {accent};
+            border-radius:8px;padding:14px 16px;margin-bottom:12px;
+            box-shadow:0 1px 3px rgba(0,0,0,.07)">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
     <div>
       <div style="font-size:16px;font-weight:700;color:#111827">
@@ -179,15 +185,17 @@ with col_doc:
         try:
             with open(orig_path, "rb") as f:
                 pdf_bytes = f.read()
-            b64 = base64.b64encode(pdf_bytes).decode()
-            st.markdown(
-                f'<iframe src="data:application/pdf;base64,{b64}" '
-                f'width="100%" height="480px" '
-                f'style="border:1px solid #E5E7EB;border-radius:8px"></iframe>',
-                unsafe_allow_html=True,
-            )
+            # Render first page as image (data: URI iframes are blocked by all modern browsers)
+            import fitz  # pymupdf
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            page_count = doc.page_count
+            pix = doc[0].get_pixmap(matrix=fitz.Matrix(1.6, 1.6))
+            img_bytes = pix.tobytes("png")
+            doc.close()
+            st.image(img_bytes, use_container_width=True,
+                     caption=f"Invoice preview — page 1 of {page_count}")
             st.download_button(
-                "Download Original PDF",
+                "⬇ Download Original PDF",
                 pdf_bytes,
                 file_name=os.path.basename(orig_path),
                 mime="application/pdf",

@@ -29,6 +29,10 @@ filtered = drafts
 if sel_status != "All":
     filtered = [d for d in drafts if d.get("draft_status") == sel_status]
 
+if not filtered:
+    st.info(f"No drafts with status **{sel_status}**. Change the filter to see others.")
+    st.stop()
+
 st.write(f"Showing **{len(filtered)}** drafts")
 
 rows = []
