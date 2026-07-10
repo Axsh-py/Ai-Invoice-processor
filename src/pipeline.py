@@ -45,8 +45,9 @@ def process_invoice(
         _api_key = get_secret("OPENAI_API_KEY")
         if ai_mode == "openai" and _api_key:
             try:
+                import httpx
                 from openai import OpenAI
-                _openai_client = OpenAI(api_key=_api_key)
+                _openai_client = OpenAI(api_key=_api_key, http_client=httpx.Client())
             except Exception:
                 pass
         vendor_id, vendor_confidence, vendor_method = classify_vendor_full(

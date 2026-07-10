@@ -37,8 +37,9 @@ if oai_key and len(oai_key) > 10:
     if st.button("🔌 Test AI Connection (Live OpenAI Call)", type="primary", use_container_width=False):
         with st.spinner("Calling OpenAI gpt-4o-mini..."):
             try:
+                import httpx
                 from openai import OpenAI
-                _client = OpenAI(api_key=oai_key)
+                _client = OpenAI(api_key=oai_key, http_client=httpx.Client())
                 _resp = _client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
