@@ -18,10 +18,14 @@ _INVOICE_KEYWORDS = [
 
 def _configure_tesseract() -> bool:
     try:
+        import shutil
         import pytesseract
         cmd = os.environ.get("TESSERACT_CMD", _TESSERACT_DEFAULT)
         pytesseract.pytesseract.tesseract_cmd = cmd
-        return Path(cmd).exists()
+        # Path.exists() fails for bare names like "tesseract" — use shutil.which
+        if os.path.isabs(cmd):
+            return Path(cmd).exists()
+        return shutil.which(cmd) is not None
     except ImportError:
         return False
 
