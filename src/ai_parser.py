@@ -7,6 +7,7 @@ from typing import Optional
 from .prompts.invoice_parser_prompt import SYSTEM_PROMPT, build_user_prompt, build_repair_prompt
 from .prompts.invoice_parser_prompt import build_vendor_user_prompt, VENDOR_SYSTEM_PROMPT
 from .schemas import validate_extracted_json
+from .config import get_secret
 
 
 def _find(pattern: str, text: str, default: str = "") -> str:
@@ -395,8 +396,9 @@ def mock_parse_invoice(raw_text: str, vendor_id: str = "UNKNOWN") -> dict:
 
 def openai_parse_invoice(raw_text: str) -> dict:
     """Parse invoice using OpenAI with production-grade prompt and JSON validation."""
+    import httpx
     from openai import OpenAI
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    client = OpenAI(api_key=get_secret("OPENAI_API_KEY"), http_client=httpx.Client())
 
     def _call(prompt_text: str) -> dict:
         response = client.chat.completions.create(
@@ -450,8 +452,9 @@ def parse_invoice(raw_text: str, mode: str = "mock", vendor_id: str = "UNKNOWN")
 
 def openai_parse_invoice_for_vendor(raw_text: str, vendor_id: str) -> dict:
     """Vendor-specific extraction using OpenAI with vendor-aware prompt."""
+    import httpx
     from openai import OpenAI
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    client = OpenAI(api_key=get_secret("OPENAI_API_KEY"), http_client=httpx.Client())
 
     def _call(system: str, user: str) -> dict:
         response = client.chat.completions.create(
