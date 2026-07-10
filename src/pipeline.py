@@ -15,7 +15,7 @@ from .logger import db_log, STEP_FILE_RECEIVED, STEP_OCR_STARTED, STEP_OCR_COMPL
 from .logger import STEP_AI_PARSING_STARTED, STEP_AI_PARSING_COMPLETED, STEP_ENRICHMENT_COMPLETED
 from .logger import STEP_VALIDATION_COMPLETED, STEP_OTM_DRAFT_CREATED, STEP_REVIEW_REQUIRED
 from .logger import STATUS_OK, STATUS_WARN, STATUS_ERROR
-from .config import PROCESSED_DIR, FAILED_DIR
+from .config import PROCESSED_DIR, FAILED_DIR, get_secret
 
 
 def process_invoice(
@@ -42,10 +42,11 @@ def process_invoice(
 
         # ── Vendor classification ──────────────────────────────────────────────
         _openai_client = None
-        if ai_mode == "openai" and os.environ.get("OPENAI_API_KEY"):
+        _api_key = get_secret("OPENAI_API_KEY")
+        if ai_mode == "openai" and _api_key:
             try:
                 from openai import OpenAI
-                _openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+                _openai_client = OpenAI(api_key=_api_key)
             except Exception:
                 pass
         vendor_id, vendor_confidence, vendor_method = classify_vendor_full(

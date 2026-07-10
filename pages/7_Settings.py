@@ -8,7 +8,7 @@ load_dotenv()
 
 from src.database import init_db
 from src.config import BASE_DIR, DB_PATH, ORIGINALS_DIR, WORKING_DIR, PROCESSED_DIR, FAILED_DIR
-from src.config import SAMPLE_INVOICES_DIR, EMAIL_INBOX_DIR
+from src.config import SAMPLE_INVOICES_DIR, EMAIL_INBOX_DIR, get_secret
 from src.theme import apply, page_header, section_label
 
 st.set_page_config(page_title="Settings — OTM AI", page_icon="⚙️", layout="wide")
@@ -22,7 +22,7 @@ section_label("API STATUS")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    oai_key = os.getenv("OPENAI_API_KEY", "")
+    oai_key = get_secret("OPENAI_API_KEY")
     if oai_key and len(oai_key) > 10:
         st.success("OpenAI API Key — Configured")
         st.caption(f"Key: sk-...{oai_key[-6:]}")
@@ -32,7 +32,7 @@ with col1:
 
 # ── Live AI connection test ────────────────────────────────────────────────────
 st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-oai_key = os.getenv("OPENAI_API_KEY", "")
+oai_key = get_secret("OPENAI_API_KEY")
 if oai_key and len(oai_key) > 10:
     if st.button("🔌 Test AI Connection (Live OpenAI Call)", type="primary", use_container_width=False):
         with st.spinner("Calling OpenAI gpt-4o-mini..."):

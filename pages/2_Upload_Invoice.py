@@ -8,7 +8,7 @@ load_dotenv()
 from src.database import init_db
 from src.file_manager import save_original_and_copy, save_path_as_original_and_copy
 from src.pipeline import process_invoice
-from src.config import SAMPLE_INVOICES_DIR
+from src.config import SAMPLE_INVOICES_DIR, get_secret
 from src.theme import apply, page_header, result_banner, field_card, section_label, status_badge
 
 st.set_page_config(page_title="Upload Invoice — OTM AI", page_icon="📤", layout="wide")
@@ -30,7 +30,7 @@ with st.sidebar:
   </div>
 </div>""", unsafe_allow_html=True)
 
-    _has_key = bool(os.environ.get("OPENAI_API_KEY"))
+    _has_key = bool(get_secret("OPENAI_API_KEY"))
     _default_idx = 1 if _has_key else 0
     ai_mode = st.selectbox(
         "AI Parser Mode", ["mock", "openai"],
@@ -38,7 +38,7 @@ with st.sidebar:
         help="'mock' uses fast regex (no API key needed). 'openai' uses GPT-4o-mini for higher accuracy."
     )
     if ai_mode == "openai" and not _has_key:
-        st.warning("OpenAI API key not found. Add it to Streamlit Cloud Secrets (Settings → Secrets). Falling back to mock.", icon="⚠️")
+        st.warning("OpenAI API key not found. Add OPENAI_API_KEY in Streamlit Cloud → App Settings → Secrets.", icon="⚠️")
 
     st.divider()
     from src.ocr import tesseract_available
