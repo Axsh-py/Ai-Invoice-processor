@@ -1,0 +1,43 @@
+{
+  "items": [
+    {
+      "invoiceXid": "1181202512300002",
+      "domainName": "TW/TIL/MUM",
+      "invoiceGid": "TW/TIL/MUM.1181202512300002",
+      "invoiceStatus": "APPROVED",
+      "servprovGid": "TW.BENGAL_AIRLIFT",
+      "totalCharge": { "value": 925.00, "currency": "USD" },
+      "invoiceDate": "2026-02-22",
+      "dueDate": "2026-03-08",
+      "invoiceType": "FREIGHT",
+      "hasDocuments": true
+    },
+    {
+      "invoiceXid": "INV-TW-2026-0441",
+      "domainName": "TW/DWCLLC/DXB",
+      "invoiceGid": "TW/DWCLLC/DXB.INV-TW-2026-0441",
+      "invoiceStatus": "PENDING",
+      "servprovGid": "TW.HAPAG_LLOYD",
+      "totalCharge": { "value": 45000.00, "currency": "AED" },
+      "invoiceDate": "2026-07-01",
+      "dueDate": "2026-07-30",
+      "invoiceType": "FREIGHT",
+      "hasDocuments": false
+    },
+    {
+      "invoiceXid": "INV-TW-2026-0442",
+      "domainName": "TW/DWCLLC/DXB",
+      "invoiceGid": "TW/DWCLLC/DXB.INV-TW-2026-0442",
+      "invoiceStatus": "PENDING",
+      "servprovGid": "TW.MAERSK",
+      "totalCharge": { "value": 73000.00, "currency": "AED" },
+      "invoiceDate": "2026-07-05",
+      "dueDate": "2026-08-04",
+      "invoiceType": "FREIGHT",
+      "hasDocuments": true
+    }
+  ],
+  "totalResults": 3,
+  "limit": 50,
+  "offset": 0
+}

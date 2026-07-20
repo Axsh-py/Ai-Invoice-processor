@@ -77,6 +77,48 @@ with col3:
     st.success(f"Mode: AI={ai_mode} | OCR={ocr_mode}")
     st.caption(f"Default VAT rate: {float(vat_rate)*100:.0f}%")
 
+section_label("OTM API STATUS")
+from src.otm_client import test_connection, api_mode, default_domain
+
+_otm_mode = api_mode()
+_otm_col1, _otm_col2, _otm_col3 = st.columns(3)
+
+with _otm_col1:
+    _base = get_secret("OTM_BASE_URL")
+    if _base:
+        st.success(f"OTM Base URL — Configured")
+        st.caption(f"`{_base[:60]}...`" if len(_base) > 60 else f"`{_base}`")
+    else:
+        st.warning("OTM Base URL — Not Set")
+        st.caption("Add `OTM_BASE_URL` to .env or Streamlit Secrets.")
+
+with _otm_col2:
+    _otm_user = get_secret("OTM_USERNAME")
+    if _otm_user:
+        st.success(f"OTM Auth — Configured")
+        st.caption(f"User: `{_otm_user}` | Domain: `{default_domain()}`")
+    else:
+        st.warning("OTM Credentials — Not Set")
+        st.caption("Add `OTM_USERNAME` and `OTM_PASSWORD` to .env.")
+
+with _otm_col3:
+    if _otm_mode == "live":
+        st.info("OTM Mode — **LIVE** (real API calls)")
+    else:
+        st.info("OTM Mode — **MOCK** (demo data)")
+    st.caption("Set `OTM_API_MODE=live` in .env to connect real OTM.")
+
+st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+if st.button("🔌 Test OTM Connection", type="secondary"):
+    with st.spinner("Testing OTM API..."):
+        _otm_result = test_connection()
+    if _otm_result["success"]:
+        st.success(f"✅ {_otm_result.get('message', 'OTM connected')} | Mode: {_otm_result['mode'].upper()}")
+    else:
+        st.error(f"❌ OTM connection failed: {_otm_result.get('error', 'Unknown error')}")
+        if _otm_mode == "mock":
+            st.caption("Mock mode — no real connection needed. Switch to live mode to test real API.")
+
 section_label("DATABASE STATISTICS")
 
 try:

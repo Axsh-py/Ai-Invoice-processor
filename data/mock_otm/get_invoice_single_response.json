@@ -1,0 +1,28 @@
+{
+  "invoiceXid": "1181202512300002",
+  "domainName": "TW/TIL/MUM",
+  "invoiceGid": "TW/TIL/MUM.1181202512300002",
+  "invoiceStatus": "APPROVED",
+  "invoiceDate": "2026-02-22",
+  "dueDate": "2026-03-08",
+  "invoiceType": "FREIGHT",
+  "servprovGid": "TW.BENGAL_AIRLIFT",
+  "servprovXid": "BENGAL_AIRLIFT",
+  "totalCharge": { "value": 925.00, "currency": "USD" },
+  "paymentMethod": "BANK_TRANSFER",
+  "invoiceBillRuleGid": "TW.INVOICE PER LINE",
+  "financialConsolidationType": "SINGLE_SHIPMENT",
+  "costLineItems": [
+    {
+      "accessorialCodeGid": "TW.AFRT",
+      "accessorialDesc": "Air Freight Charge",
+      "costType": "B",
+      "charge": { "value": 925.00, "currency": "USD" },
+      "vatAmount": { "value": 0.00, "currency": "USD" },
+      "shipmentGid": "TW/DWCLLC/DXB.BK-2026-02-4521"
+    }
+  ],
+  "shipmentGid": "TW/DWCLLC/DXB.BK-2026-02-4521",
+  "route": "Dhaka → Dubai",
+  "remarks": "Debit Note DRN26022238260A"
+}
